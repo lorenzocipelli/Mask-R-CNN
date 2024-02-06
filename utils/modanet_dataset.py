@@ -44,7 +44,6 @@ class ModaNetDataset(torch.utils.data.Dataset):
 
         # FIRST PART: load image
 
-        img_name = self.imgs[idx]
         img_id = self.imgs_ids[idx] # used later for the annotations
 
         print("image_id: " + str(img_id))
