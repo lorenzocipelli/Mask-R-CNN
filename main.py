@@ -2,6 +2,7 @@ import json
 import os
 import torchvision
 import argparse
+import numpy as np
 import torch
 import matplotlib.pyplot as plt
 
@@ -14,16 +15,19 @@ from torch.utils.data import DataLoader
 from utils.modanet import ModaNetDataset
 from utils.utils import get_transform
 
-print('getcwd: ', os.getcwd())
+# print('getcwd: ', os.getcwd()) # working directory
+
+FIRST_STOP = 32728 # 70 %
+SECOND_STOP = 7013 # 15 %
 
 def get_subsets(dataset) :
-    # total -> 46.868 elements (100 %)
-    # train -> 32808 elements (70 %)
-    # validation -> 7030 elements (15 %)
-    # test -> 7030 elements (15 %)
+    # total -> 46754 elements (100 %)
+    # train -> 32728 elements (70 %)
+    # validation -> 7013 elements (15 %)
+    # test -> 7013 elements (15 %)
 
     idxs = torch.randperm(len(dataset)).tolist()
-    train_list, valid_list, test_list = idxs[:32808], idxs[32808:32808+7030], idxs[-7030:]
+    train_list, valid_list, test_list = idxs[:FIRST_STOP], idxs[FIRST_STOP:FIRST_STOP+SECOND_STOP], idxs[-SECOND_STOP:]
     train = torch.utils.data.Subset(dataset, train_list)
     valid = torch.utils.data.Subset(dataset, valid_list)
     test = torch.utils.data.Subset(dataset, test_list)
@@ -45,11 +49,9 @@ def main() :
         print("Indice Enumerate: " + str(i))
         #print(data)"""
 
-    prog_bar = tqdm(train_loader, total=len(train_loader))
-
-    for i, data in enumerate(prog_bar):
+    for i, data in enumerate(train_loader):
         j = 1
-        #print("Indice Enumerate: " + str(i))
+        print("Indice Enumerate: " + str(i))
         #print("New target: ")
         #print(target) 
 
@@ -57,5 +59,5 @@ def main() :
 
     #model = MaskRCNN(num_classes=14)
 
-if __name__ == "__main__":
+if __name__ == "__main__" :
     main()

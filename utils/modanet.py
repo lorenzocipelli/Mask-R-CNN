@@ -5,7 +5,6 @@ import matplotlib.patches as patches
 import numpy as np
 
 from PIL import Image
-from .utils import pil_loader
 from torchvision.io import read_image
 from torchvision import tv_tensors
 from torchvision.ops import box_area
@@ -31,7 +30,7 @@ class ModaNetDataset(torch.utils.data.Dataset):
         self.img_path = img_path
         #self.transforms = transforms
 
-        self.annotations_path = os.path.join(img_path, "modanet2018_instances_train.json")
+        self.annotations_path = os.path.join(img_path, "modanet2018_instances_train_fix.json")
         self.annotations = COCO(annotation_file=self.annotations_path)
 
         self.imgs = list(sorted(os.listdir(os.path.join(img_path, "images_train"))))
@@ -89,7 +88,7 @@ class ModaNetDataset(torch.utils.data.Dataset):
             y2 = y1 + ann["bbox"][3]
             
             boxes.append([x1,y1,x2,y2]) 
-            #bb = patches.Rectangle((ann["bbox"][0],ann["bbox"][1]), ann["bbox"][3],ann["bbox"][2], linewidth=2, edgecolor="blue", facecolor="none")
+            #bb = patches.Rectangle((x1,x2,ann["bbox"][2],ann["bbox"][3], linewidth=2, edgecolor="blue", facecolor="none")
             #ax.add_patch(bb)
             labels.append(ann["category_id"]) # get the cat from annotation
 
@@ -103,7 +102,13 @@ class ModaNetDataset(torch.utils.data.Dataset):
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         # for every BB compute the area: (y2-y1) * (x2-x1) 
         #area = box_area(boxes)
-        #area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        if boxes.dim() < 2 :
+            print("Image ID: " + str(img_id))
+            print("Number of Annotations: " + str(len(ann_ids)))
+            print(boxes.size())
+            area = torch.as_tensor([[0]])
+        else :
+            area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         # suppose all instances are not crowd
         iscrowd = torch.zeros((len(img_anns),), dtype=torch.int64)
 
@@ -111,13 +116,11 @@ class ModaNetDataset(torch.utils.data.Dataset):
         target["masks"] = torch.as_tensor(np.asarray(masks), dtype=torch.uint8)
         target["labels"] = torch.as_tensor(labels, dtype=torch.int64)
         target["image_id"] = img_id
-        target["area"] = 0
+        target["area"] = area
         target["iscrowd"] = iscrowd
 
         #if self.transforms is not None:
         #    img, target = self.transforms(img, target)
-
-        #print(target)
 
         return img, target
 
