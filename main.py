@@ -35,7 +35,7 @@ def get_subsets(dataset) :
     return train, valid, test
 
 def main() :
-    modanet = ModaNetDataset("dataset")#, get_transform())
+    modanet = ModaNetDataset("dataset", get_transform())
 
     train_modanet, val_modanet, test_modanet = get_subsets(modanet)
 
@@ -45,17 +45,12 @@ def main() :
     #valid_loader = DataLoader(val_modanet, batch_size=16, shuffle=False, num_workers=4)
     #test_loader = DataLoader(test_modanet, batch_size=16, shuffle=False, num_workers=4)
 
-    """for i, data in enumerate(modanet, 0): 
-        print("Indice Enumerate: " + str(i))
-        #print(data)"""
-
     for i, data in enumerate(train_loader):
-        j = 1
         print("Indice Enumerate: " + str(i))
         #print("New target: ")
         #print(target) 
 
-    print("fine")
+    print("Training Finished !")
 
     #model = MaskRCNN(num_classes=14)
 

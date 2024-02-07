@@ -22,13 +22,13 @@ class ModaNetDataset(torch.utils.data.Dataset):
         https://pytorch.org/tutorials/intermediate/torchvision_tutorial.html
     """
 
-    def __init__(self, img_path) :#, transforms):
+    def __init__(self, img_path, transforms):
         """
             Passing the image path and the transformation. Automatically list all the images
             and the images IDs using pycocotools for the latter
         """
         self.img_path = img_path
-        #self.transforms = transforms
+        self.transforms = transforms
 
         self.annotations_path = os.path.join(img_path, "modanet2018_instances_train_fix.json")
         self.annotations = COCO(annotation_file=self.annotations_path)
@@ -50,10 +50,7 @@ class ModaNetDataset(torch.utils.data.Dataset):
         
         img_path = os.path.join(self.img_path, "images_train", self.imgs[idx])
 
-        img = read_image(img_path)
-
-        # print the image if needed
-        #image = np.array(Image.open(os.path.join(self.img_path, "images_train", img_name)))        
+        img = read_image(img_path)    
 
         # SECOND PART: load all the annotations
 
@@ -78,7 +75,7 @@ class ModaNetDataset(torch.utils.data.Dataset):
         
         target = {}
         boxes, masks, labels = [], [], []
-        #fig, ax = plt.subplots() # to delete
+
         for ann in img_anns : # for every annotation got for the image
             masks.append(torch.from_numpy(self.annotations.annToMask(ann))) # we got the mask in binary 2D array
             
@@ -88,27 +85,23 @@ class ModaNetDataset(torch.utils.data.Dataset):
             y2 = y1 + ann["bbox"][3]
             
             boxes.append([x1,y1,x2,y2]) 
-            #bb = patches.Rectangle((x1,x2,ann["bbox"][2],ann["bbox"][3], linewidth=2, edgecolor="blue", facecolor="none")
-            #ax.add_patch(bb)
             labels.append(ann["category_id"]) # get the cat from annotation
-
-        #ax.imshow(image)
-        #plt.show()
             
         # THIRD PART: put everything inside img and target
             
         img = tv_tensors.Image(img)
 
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
-        # for every BB compute the area: (y2-y1) * (x2-x1) 
-        #area = box_area(boxes)
-        if boxes.dim() < 2 :
+        # this area computation mathod works only if all images
+        # have at least one BB, otherwhise it will crash
+        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        """ if boxes.dim() < 2 :
             print("Image ID: " + str(img_id))
             print("Number of Annotations: " + str(len(ann_ids)))
             print(boxes.size())
             area = torch.as_tensor([[0]])
         else :
-            area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+            area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0]) """
         # suppose all instances are not crowd
         iscrowd = torch.zeros((len(img_anns),), dtype=torch.int64)
 
@@ -119,8 +112,8 @@ class ModaNetDataset(torch.utils.data.Dataset):
         target["area"] = area
         target["iscrowd"] = iscrowd
 
-        #if self.transforms is not None:
-        #    img, target = self.transforms(img, target)
+        if self.transforms is not None:
+            img, target = self.transforms(img, target)
 
         return img, target
 
