@@ -5,9 +5,10 @@ import matplotlib.patches as patches
 import numpy as np
 
 from PIL import Image
+from .utils import pil_loader
 from torchvision.io import read_image
-from torchvision.ops.boxes import masks_to_boxes
 from torchvision import tv_tensors
+from torchvision.ops import box_area
 from torchvision.transforms.v2 import functional as F
 
 from pycocotools.coco import COCO
@@ -22,13 +23,13 @@ class ModaNetDataset(torch.utils.data.Dataset):
         https://pytorch.org/tutorials/intermediate/torchvision_tutorial.html
     """
 
-    def __init__(self, img_path, transforms):
+    def __init__(self, img_path) :#, transforms):
         """
             Passing the image path and the transformation. Automatically list all the images
             and the images IDs using pycocotools for the latter
         """
         self.img_path = img_path
-        self.transforms = transforms
+        #self.transforms = transforms
 
         self.annotations_path = os.path.join(img_path, "modanet2018_instances_train.json")
         self.annotations = COCO(annotation_file=self.annotations_path)
@@ -46,9 +47,10 @@ class ModaNetDataset(torch.utils.data.Dataset):
 
         img_id = self.imgs_ids[idx] # used later for the annotations
 
-        print("image_id: " + str(img_id))
+        #print("image_id: " + str(img_id))
         
         img_path = os.path.join(self.img_path, "images_train", self.imgs[idx])
+
         img = read_image(img_path)
 
         # print the image if needed
@@ -98,26 +100,29 @@ class ModaNetDataset(torch.utils.data.Dataset):
             
         img = tv_tensors.Image(img)
 
-        masks = torch.as_tensor(np.asarray(masks), dtype=torch.uint8)
         boxes = torch.as_tensor(boxes, dtype=torch.float32)
         # for every BB compute the area: (y2-y1) * (x2-x1) 
-        area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
+        #area = box_area(boxes)
+        #area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         # suppose all instances are not crowd
         iscrowd = torch.zeros((len(img_anns),), dtype=torch.int64)
-            
-        target["boxes"] = tv_tensors.BoundingBoxes(boxes, format="XYWH", canvas_size=F.get_size(img))
-        target["masks"] = tv_tensors.Mask(masks)
+
+        target["boxes"] = boxes
+        target["masks"] = torch.as_tensor(np.asarray(masks), dtype=torch.uint8)
         target["labels"] = torch.as_tensor(labels, dtype=torch.int64)
         target["image_id"] = img_id
-        target["area"] = area
+        target["area"] = 0
         target["iscrowd"] = iscrowd
 
-        print(img)
-        print(target)
+        #if self.transforms is not None:
+        #    img, target = self.transforms(img, target)
 
-        if self.transforms is not None:
-            img, target = self.transforms(img, target)
+        #print(target)
+
         return img, target
 
     def __len__(self):
         return len(self.imgs)
+    
+    def show_info(self):
+        print(self.imgs_ids)

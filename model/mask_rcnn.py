@@ -1,12 +1,6 @@
-import json
-import os
 import torchvision
 import torch.nn as nn
-import matplotlib.pyplot as plt
 
-from torchvision.io import read_image
-from utils.modanet_dataset import ModaNetDataset
-from utils.utils import get_transform
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 
