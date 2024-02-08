@@ -1,11 +1,20 @@
 import torch
 import torch.optim as optim
 
+import torchvision
+import torch
+import torchaudio
+
 from tqdm import tqdm
-from .model.mask_rcnn import MaskRCNN
+from model.mask_rcnn import MaskRCNN
 
 NUM_EPOCHS = 10
-DEVICE = torch.device("cpu")
+DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+#torchvision-0.17.0+cu118-cp311-cp311-win_amd64.whl
+""" print(torch.__version__)
+print(torchvision.__version__)
+print(torchaudio.__version__) """
 
 class Engine() :
     """
@@ -35,6 +44,8 @@ class Engine() :
                 self.optimizer.zero_grad()
 
                 output = self.model(images, targets)
+
+                print(output)
 
                 #print(type(output))
                 # capire il criterion da utilizzare
