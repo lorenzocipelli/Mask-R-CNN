@@ -32,9 +32,9 @@ def main() :
 
     train_modanet, val_modanet, test_modanet = get_subsets(modanet)
 
-    train_loader = DataLoader(train_modanet, batch_size=4, shuffle=True, num_workers=4, collate_fn=collate_fn)
-    valid_loader = DataLoader(val_modanet, batch_size=4, shuffle=False, num_workers=4, collate_fn=collate_fn)
-    test_loader = DataLoader(test_modanet, batch_size=4, shuffle=False, num_workers=4, collate_fn=collate_fn)
+    train_loader = DataLoader(train_modanet, batch_size=6, shuffle=True, num_workers=4, collate_fn=collate_fn)
+    valid_loader = DataLoader(val_modanet, batch_size=6, shuffle=False, num_workers=4, collate_fn=collate_fn)
+    test_loader = DataLoader(test_modanet, batch_size=6, shuffle=False, num_workers=4, collate_fn=collate_fn)
 
     engine = Engine(train_loader, valid_loader, test_loader)
 
