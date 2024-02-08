@@ -3,6 +3,7 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 import numpy as np
+import cv2
 
 from PIL import Image
 from torchvision.io import read_image
@@ -77,7 +78,9 @@ class ModaNetDataset(torch.utils.data.Dataset):
         boxes, masks, labels = [], [], []
 
         for ann in img_anns : # for every annotation got for the image
-            masks.append(torch.from_numpy(self.annotations.annToMask(ann))) # we got the mask in binary 2D array
+            mask = self.annotations.annToMask(ann) # we got the mask in binary 2D array
+            mask = cv2.resize(mask, (400, 600), cv2.INTER_LINEAR) # from https://stackoverflow.com/questions/48121916/numpy-resize-rescale-image
+            masks.append(mask)
             
             x1 = ann["bbox"][0]
             y1 = ann["bbox"][1]
@@ -95,20 +98,13 @@ class ModaNetDataset(torch.utils.data.Dataset):
         # this area computation mathod works only if all images
         # have at least one BB, otherwhise it will crash
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
-        """ if boxes.dim() < 2 :
-            print("Image ID: " + str(img_id))
-            print("Number of Annotations: " + str(len(ann_ids)))
-            print(boxes.size())
-            area = torch.as_tensor([[0]])
-        else :
-            area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0]) """
         # suppose all instances are not crowd
         iscrowd = torch.zeros((len(img_anns),), dtype=torch.int64)
 
         target["boxes"] = boxes
-        target["masks"] = torch.as_tensor(np.asarray(masks), dtype=torch.uint8)
+        target["masks"] = torch.as_tensor(np.array(masks), dtype=torch.uint8)
         target["labels"] = torch.as_tensor(labels, dtype=torch.int64)
-        target["image_id"] = img_id
+        target["image_id"] = torch.tensor([img_id]) # to allow v.to(DEVICE)
         target["area"] = area
         target["iscrowd"] = iscrowd
 

@@ -111,5 +111,5 @@ def clean_dataset() :
     img_to_remove = spot_corrupted_files()
     img_to_remove += spot_imgs_without_annotations()
     remove_from_json(img_to_remove)
-    
+ 
 #clean_dataset()
