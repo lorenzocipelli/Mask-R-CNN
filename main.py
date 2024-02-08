@@ -1,17 +1,7 @@
-import json
-import os
-import torchvision
-import argparse
-import numpy as np
 import torch
-import torch.optim as optim
-import matplotlib.pyplot as plt
 
-from tqdm import tqdm
 from utils.utils import collate_fn
-from model.mask_rcnn import MaskRCNN
 
-from torchvision.io import read_image
 from torch.utils.data import DataLoader
 from utils.modanet import ModaNetDataset
 from utils.utils import get_transform
