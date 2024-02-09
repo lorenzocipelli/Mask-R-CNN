@@ -15,6 +15,32 @@ from engine import Engine
 FIRST_STOP = 32728 # 70 %
 SECOND_STOP = 7013 # 15 %
 
+def get_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--model_name', type=str, default="", help='name of the model to be saved/loaded')
+    parser.add_argument('--annotations_file', type=str, default="modanet2018_instances_train_fix.json", help='name of the annotations file')
+
+    parser.add_argument('--epochs', type=int, default=4, help='number of epochs in training')
+    parser.add_argument('--batch_size', type=int, default=4, help='number of elements in batch size')
+    parser.add_argument('--workers', type=int, default=4, help='number of workers in data loader')
+
+    parser.add_argument('--lr', type=float, default=0.005, help='learning rate')
+    parser.add_argument('--opt', type=str, default='SGD', choices=['SGD', 'Adam'], help = 'training optimizer')
+
+    parser.add_argument('--dataset_path', type=str, default='./dataset', help='path were to save/get the dataset')
+    parser.add_argument('--saving_path', type=str, default='./model/checkpoints/', help='path where to save the trained model')
+
+    parser.add_argument('--resume', type=bool, default=False, help='load the model from checkpoint (true or false)')
+    parser.add_argument('--resume_name', type=str,  default='', help='checkpoint model name')
+    parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'], help = 'net mode (train or test)')
+    parser.add_argument('--pretrained', type=bool, default=False, help='load pretrained coco weights')
+    parser.add_argument('--use_amp', type=bool, default=True, help='use Automatic Mixed Precision (AMP) to speed-up training')
+    parser.add_argument('--version', type=str, default='V1', choices=['V1', 'V2'], help = 'maskrcnn version V1 or V2')
+    #parser.add_argument('--cls_accessory', action='store_true', help='Add a binary classifier for the accessories')
+
+    return parser.parse_args()
+
 def get_subsets(dataset) :
     # total -> 46754 elements (100 %)
     # train -> 32728 elements (70 %)
@@ -29,31 +55,6 @@ def get_subsets(dataset) :
     test = torch.utils.data.Subset(dataset, test_list)
 
     return train, valid, test
-
-def get_args():
-    parser = argparse.ArgumentParser()
-
-    parser.add_argument('--model_name', type=str, default="", help='name of the model to be saved/loaded')
-    parser.add_argument('--annotations_file', type=str, default="modanet2018_instances_train_fix.json", help='name of the annotations file')
-
-    parser.add_argument('--epochs', type=int, default=4, help='number of epochs in training')
-    parser.add_argument('--batch_size', type=int, default=6, help='number of elements in batch size')
-    parser.add_argument('--workers', type=int, default=4, help='number of workers in data loader')
-
-    parser.add_argument('--lr', type=float, default=0.0005, help='learning rate')
-    parser.add_argument('--opt', type=str, default='SGD', choices=['SGD', 'Adam'], help = 'training optimizer')
-
-    parser.add_argument('--dataset_path', type=str, default='./dataset', help='path were to save/get the dataset')
-    parser.add_argument('--saving_path', type=str, default='./model/', help='path where to save the trained model')
-
-    # da fare parser.add_argument('--resume_train', action='store_true', help='load the model from checkpoint before training')
-    parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'], help = 'net mode (train or test)')
-    parser.add_argument('--pretrained', type=bool, default=False, help='load pretrained coco weights')
-    parser.add_argument('--use_amp', type=bool, default=True, help='use Automatic Mixed Precision (AMP) to speed-up training')
-    parser.add_argument('--version', type=str, default='V1', choices=['V1', 'V2'], help = 'maskrcnn version V1 or V2')
-    #parser.add_argument('--cls_accessory', action='store_true', help='Add a binary classifier for the accessories')
-
-    return parser.parse_args()
 
 def main(args) :
     modanet = ModaNetDataset(args, get_transform())

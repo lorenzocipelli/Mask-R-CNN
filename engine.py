@@ -4,6 +4,7 @@ import math
 import torch
 import numpy as np
 import torchvision
+import torchvision
 import torch.optim as optim
 import matplotlib.pyplot as plt
 
@@ -31,7 +32,7 @@ class Engine() :
     """
 
     def __init__(self, train_load, valid_load, test_load, args) :
-        self.model = MaskRCNN(num_classes=14, args=args).to(DEVICE)
+        self.model_name = args.model_name
         self.epochs = args.epochs
         self.train_loader = train_load
         self.valid_loader = valid_load
@@ -39,26 +40,36 @@ class Engine() :
         self.model_name = args.model_name
         self.check_path = args.saving_path
         self.use_amp = args.use_amp
+        self.model = MaskRCNN(num_classes=14, args=args).to(DEVICE)
+
+        if args.resume :
+            self.load_model(resume=args.resume_name)
+
         # The call to model.parameters()
         # in the SGD constructor will contain the learnable parameters (defined 
         # with torch.nn.Parameter) which are members of the model
         if args.opt == "SGD":
-                self.optimizer = optim.SGD(self.model.parameters(), lr=args.lr)
+            self.optimizer = optim.SGD(self.model.parameters(), lr=args.lr)
         elif args.opt == "Adam":
             self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)
 
-    def save_model(self, epoch) :
+    def save_model(self, epoch, iteration=0) :
         # if you want to save the model
-        checkpoint_name = str(self.model_name) + "_epoch" + str(epoch) + "_" + str(2999) + "_mask_r_cnn"
+        checkpoint_name = str(self.model_name) + "_epoch" + str(epoch) + "_" + str(iteration) + "_" + "mask_r_cnn"
         check_path = os.path.join(self.check_path, checkpoint_name)
         torch.save(self.model.state_dict(), check_path)
         print("Model saved!")
 
-    def load_model(self):
+    def load_model(self, resume=""):
         # function to load the model
-        check_path = os.path.join(self.check_path, str(self.model_name) + "_epoch" + str(0) + "_" + str(2999) + "_mask_r_cnn")
-        self.model.load_state_dict(torch.load(check_path, map_location=torch.device(DEVICE)))
-        print("Model loaded!", flush=True)
+        if resume != "" :
+            check_path = os.path.join(self.check_path, resume)
+            self.model.load_state_dict(torch.load(check_path, map_location=torch.device(DEVICE)))
+            print("Model loaded!", flush=True)
+        else :
+            check_path = os.path.join(self.check_path, self.model_name + "_epoch" + str(0) + "_" + "final" + "_" + "mask_r_cnn")
+            self.model.load_state_dict(torch.load(check_path, map_location=torch.device(DEVICE)))
+            print("Model loaded!", flush=True)
 
     def train(self) :
         self.model.train()
@@ -129,6 +140,10 @@ class Engine() :
                     print(f'[it: {i + 1}] loss: {running_loss / 200:.3f}')
                     running_loss = 0.0 
 
+                if i % 500 == 499:
+                    self.save_model(epoch, i)
+
+            self.save_model(epoch)
 
         print("Training Finished !")
 
@@ -136,8 +151,7 @@ class Engine() :
         return
     
     def test(self) :
-        self.load_model()
-         # set it to evaluation mode
+        # set it to evaluation mode
         self.model.eval()
         # since we're not training, we don't need to calculate the gradients for our outputs
         with torch.no_grad():
@@ -145,35 +159,38 @@ class Engine() :
             for i, data in enumerate(prog_bar):
                 images, targets = data
 
+                images =  list(image.to(DEVICE) for image in images)
+
                 predictions = self.model([images[0]])
                 pred = predictions[0]
 
                 image = (255.0 * (images[0] - images[0].min()) / (images[0].max() - images[0].min())).to(torch.uint8)
                 image = image[:3, ...]
 
-                preds = [(f"{label}: {score:.3f}", boxes, masks) for label, score, boxes, masks in zip(pred["labels"], pred["scores"], pred["boxes"], pred["masks"]) if score >= 0.07]
+                preds = [(f"{label}: {score:.3f}", boxes, masks) for label, score, boxes, masks in zip(pred["labels"].detach().cpu(), pred["scores"].detach().cpu(), pred["boxes"].detach().cpu(), pred["masks"].detach().cpu()) if score >= 0.07]
 
-                pred_labels =[t[0] for t in preds]
-                pred_boxes = torch.as_tensor([t[1].numpy() for t in preds])
-                pred_boxes = pred_boxes.long()
-                pred_masks = torch.as_tensor([t[2].numpy()  for t in preds])
-                pred_masks = (pred_masks > 0.5).squeeze(1)
-                
-                """ pred_labels = [f"{label}: {score:.3f}" for label, score in zip(pred["labels"], pred["scores"])]
-                pred_boxes = pred["boxes"].long()
-                masks = (pred["masks"] > 0.7).squeeze(1) # valore di sicurezza """
+                if len(preds) == 0 :
+                    print("No prediction was found for this image")
+                else :
+                    pred_labels = list(list(zip(*preds))[0])
+                    pred_boxes = torch.as_tensor(np.array(list(list(zip(*preds))[1])))
+                    pred_boxes = pred_boxes.long()
+                    pred_masks = torch.as_tensor(np.array(list(list(zip(*preds))[2])))
+                    pred_masks = (pred_masks > 0.5).squeeze(1)
+                    
+                    """ pred_labels = [f"{label}: {score:.3f}" for label, score in zip(pred["labels"], pred["scores"])]
+                    pred_boxes = pred["boxes"].long()
+                    masks = (pred["masks"] > 0.7).squeeze(1) # valore di sicurezza """
 
-                output_image = draw_bounding_boxes(image, pred_boxes, pred_labels, colors="red")
-                output_image = draw_segmentation_masks(output_image, pred_masks, alpha=0.5, colors="blue")
+                    output_image = draw_bounding_boxes(image, pred_boxes, pred_labels, colors="red")
+                    output_image = draw_segmentation_masks(output_image, pred_masks, alpha=0.5, colors="blue")
 
-                plt.figure(figsize=(16, 16))
-                plt.imshow(output_image.permute(1, 2, 0))
-                plt.show()
+                    plt.figure(figsize=(16, 16))
+                    plt.imshow(output_image.permute(1, 2, 0))
+                    plt.show()
 
                 """ img = draw_bounding_boxes(images[0].type(torch.uint8), prediction[0]["boxes"].clone().detach(), width=3)
                 img = torchvision.transforms.ToPILImage()(img)
                 img.show() """
-
-
 
         return
