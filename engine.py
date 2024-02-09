@@ -154,9 +154,9 @@ class Engine() :
                 preds = [(f"{label}: {score:.3f}", boxes, masks) for label, score, boxes, masks in zip(pred["labels"], pred["scores"], pred["boxes"], pred["masks"]) if score >= 0.07]
 
                 pred_labels =[t[0] for t in preds]
-                pred_boxes = torch.as_tensor([np.array(t[1]) for t in preds])
+                pred_boxes = torch.as_tensor([t[1].numpy() for t in preds])
                 pred_boxes = pred_boxes.long()
-                pred_masks = torch.tensor([np.array(t[2]) for t in preds])
+                pred_masks = torch.as_tensor([t[2].numpy()  for t in preds])
                 pred_masks = (pred_masks > 0.5).squeeze(1)
                 
                 """ pred_labels = [f"{label}: {score:.3f}" for label, score in zip(pred["labels"], pred["scores"])]
