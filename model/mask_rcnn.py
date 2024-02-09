@@ -4,9 +4,21 @@ import torch.nn as nn
 from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 
-def get_mask_rcnn_model(num_classes) :
-    # load an instance segmentation model pre-trained on COCO
-    model = torchvision.models.detection.maskrcnn_resnet50_fpn(weights="DEFAULT")
+def get_mask_rcnn_model(num_classes, args) :
+    if args.pretrained :
+        if args.version == "V1":
+            # load an instance segmentation model pre-trained on COCO
+            model = torchvision.models.detection.maskrcnn_resnet50_fpn(weights="DEFAULT")
+        elif args.version == "V2":
+            # load an instance segmentation model pre-trained on COCO
+            model = torchvision.models.detection.maskrcnn_resnet50_fpn_v2(weights="DEFAULT")
+    else :
+        if args.version == "V1":
+            # load an instance segmentation model pre-trained on COCO
+            model = torchvision.models.detection.maskrcnn_resnet50_fpn()
+        elif args.version == "V2":
+            # load an instance segmentation model pre-trained on COCO
+            model = torchvision.models.detection.maskrcnn_resnet50_fpn_v2()
 
     # get number of input features for the classifier
     in_features = model.roi_heads.box_predictor.cls_score.in_features
@@ -26,9 +38,9 @@ def get_mask_rcnn_model(num_classes) :
     return model
 
 class MaskRCNN(nn.Module) :
-    def __init__(self, num_classes):
+    def __init__(self, num_classes, args):
         super().__init__()
-        self.model = get_mask_rcnn_model(num_classes=num_classes)
+        self.model = get_mask_rcnn_model(num_classes, args)
 
     def forward(self, images, targets=None):
         return self.model(images,targets)

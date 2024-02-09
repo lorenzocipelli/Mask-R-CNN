@@ -1,4 +1,7 @@
 import torch
+import argparse
+
+from pprint import pprint
 
 from utils.utils import collate_fn
 
@@ -27,18 +30,47 @@ def get_subsets(dataset) :
 
     return train, valid, test
 
-def main() :
-    modanet = ModaNetDataset("dataset", get_transform())
+def get_args():
+    parser = argparse.ArgumentParser()
+
+    parser.add_argument('--model_name', type=str, default="", help='name of the model to be saved/loaded')
+    parser.add_argument('--annotations_file', type=str, default="modanet2018_instances_train_fix.json", help='name of the annotations file')
+
+    parser.add_argument('--epochs', type=int, default=4, help='number of epochs in training')
+    parser.add_argument('--batch_size', type=int, default=6, help='number of elements in batch size')
+    parser.add_argument('--workers', type=int, default=4, help='number of workers in data loader')
+
+    parser.add_argument('--lr', type=float, default=0.0005, help='learning rate')
+    parser.add_argument('--opt', type=str, default='SGD', choices=['SGD', 'Adam'], help = 'training optimizer')
+
+    parser.add_argument('--dataset_path', type=str, default='./dataset', help='path were to save/get the dataset')
+    parser.add_argument('--saving_path', type=str, default='./model/', help='path where to save the trained model')
+
+    # da fare parser.add_argument('--resume_train', action='store_true', help='load the model from checkpoint before training')
+    parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'], help = 'net mode (train or test)')
+    parser.add_argument('--pretrained', type=bool, default=False, help='load pretrained coco weights')
+    parser.add_argument('--use_amp', type=bool, default=True, help='use Automatic Mixed Precision (AMP) to speed-up training')
+    parser.add_argument('--version', type=str, default='V1', choices=['V1', 'V2'], help = 'maskrcnn version V1 or V2')
+    #parser.add_argument('--cls_accessory', action='store_true', help='Add a binary classifier for the accessories')
+
+    return parser.parse_args()
+
+def main(args) :
+    modanet = ModaNetDataset(args, get_transform())
 
     train_modanet, val_modanet, test_modanet = get_subsets(modanet)
 
-    train_loader = DataLoader(train_modanet, batch_size=6, shuffle=True, num_workers=4, collate_fn=collate_fn)
-    valid_loader = DataLoader(val_modanet, batch_size=6, shuffle=False, num_workers=4, collate_fn=collate_fn)
-    test_loader = DataLoader(test_modanet, batch_size=6, shuffle=False, num_workers=4, collate_fn=collate_fn)
+    train_loader = DataLoader(train_modanet, batch_size=args.batch_size, shuffle=True, num_workers=args.workers, collate_fn=collate_fn)
+    valid_loader = DataLoader(val_modanet, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, collate_fn=collate_fn)
+    test_loader = DataLoader(test_modanet, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, collate_fn=collate_fn)
 
-    engine = Engine(train_loader, valid_loader, test_loader)
+    engine = Engine(train_loader, valid_loader, test_loader, args)
 
-    engine.train()
+    if args.mode == "train":
+        engine.train()
+    elif args.mode == "test":
+        engine.test()
 
 if __name__ == "__main__" :
-    main()
+    args = get_args()
+    main(args)

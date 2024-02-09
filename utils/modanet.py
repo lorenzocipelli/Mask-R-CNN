@@ -23,18 +23,18 @@ class ModaNetDataset(torch.utils.data.Dataset):
         https://pytorch.org/tutorials/intermediate/torchvision_tutorial.html
     """
 
-    def __init__(self, img_path, transforms):
+    def __init__(self, args, transforms):
         """
             Passing the image path and the transformation. Automatically list all the images
             and the images IDs using pycocotools for the latter
         """
-        self.img_path = img_path
+        self.img_path = args.dataset_path
         self.transforms = transforms
 
-        self.annotations_path = os.path.join(img_path, "modanet2018_instances_train_fix.json")
+        self.annotations_path = os.path.join(self.img_path, "modanet2018_instances_train_fix.json")
         self.annotations = COCO(annotation_file=self.annotations_path)
 
-        self.imgs = list(sorted(os.listdir(os.path.join(img_path, "images_train"))))
+        self.imgs = list(sorted(os.listdir(os.path.join(self.img_path, "images_train"))))
         self.imgs_ids = list(sorted(self.annotations.getImgIds())) # from COCO class
     
     def __getitem__(self, idx):
