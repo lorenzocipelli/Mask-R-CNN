@@ -13,6 +13,8 @@ from torchvision.transforms.v2 import functional as F
 
 from pycocotools.coco import COCO
 
+ACCESSORIES_IDs = [1,2,7,12,13]
+
 class ModaNetDataset(torch.utils.data.Dataset):
     """
         This class allows for loading the dataset and use it when needed
@@ -30,6 +32,7 @@ class ModaNetDataset(torch.utils.data.Dataset):
         """
         self.img_path = args.dataset_path
         self.transforms = transforms
+        self.use_accessory = args.use_accessory
 
         self.annotations_path = os.path.join(self.img_path, "modanet2018_instances_train_fix.json")
         self.annotations = COCO(annotation_file=self.annotations_path)
@@ -75,7 +78,7 @@ class ModaNetDataset(torch.utils.data.Dataset):
         """
         
         target = {}
-        boxes, masks, labels = [], [], []
+        boxes, masks, labels, accessories = [], [], [], []
 
         for ann in img_anns : # for every annotation got for the image
             mask = self.annotations.annToMask(ann) # we got the mask in binary 2D array
@@ -89,6 +92,12 @@ class ModaNetDataset(torch.utils.data.Dataset):
             
             boxes.append([x1,y1,x2,y2]) 
             labels.append(ann["category_id"]) # get the cat from annotation
+
+            if self.use_accessory:
+                if ann['category_id'] in ACCESSORIES_IDs:
+                    accessories.append(True)
+                else:
+                    accessories.append(False)
             
         # THIRD PART: put everything inside img and target
             
@@ -100,6 +109,7 @@ class ModaNetDataset(torch.utils.data.Dataset):
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         # suppose all instances are not crowd
         iscrowd = torch.zeros((len(img_anns),), dtype=torch.int64)
+        accessories = torch.as_tensor(accessories,  dtype=torch.float32)
 
         target["boxes"] = boxes
         target["masks"] = torch.as_tensor(np.array(masks), dtype=torch.uint8)
@@ -107,6 +117,8 @@ class ModaNetDataset(torch.utils.data.Dataset):
         target["image_id"] = torch.tensor([img_id]) # to allow v.to(DEVICE)
         target["area"] = area
         target["iscrowd"] = iscrowd
+        if self.use_accessory:
+            target["accessories"] = accessories
 
         if self.transforms is not None:
             img, target = self.transforms(img, target)

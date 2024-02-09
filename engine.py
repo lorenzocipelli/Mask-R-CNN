@@ -40,7 +40,13 @@ class Engine() :
         self.model_name = args.model_name
         self.check_path = args.saving_path
         self.use_amp = args.use_amp
-        self.model = MaskRCNN(num_classes=14, args=args).to(DEVICE)
+
+        if args.use_accessory :
+            num_classes = 15
+        else :
+            num_classes = 14
+
+        self.model = MaskRCNN(num_classes=num_classes, args=args).to(DEVICE)
 
         if args.resume :
             self.load_model(resume=args.resume_name)

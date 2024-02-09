@@ -5,19 +5,15 @@ from torchvision.models.detection.faster_rcnn import FastRCNNPredictor
 from torchvision.models.detection.mask_rcnn import MaskRCNNPredictor
 
 def get_mask_rcnn_model(num_classes, args) :
-    if args.pretrained :
-        if args.version == "V1":
-            # load an instance segmentation model pre-trained on COCO
+    if args.pretrained : # load an instance segmentation model pre-trained on COCO
+        if args.version == "V1":        
             model = torchvision.models.detection.maskrcnn_resnet50_fpn(weights="DEFAULT")
         elif args.version == "V2":
-            # load an instance segmentation model pre-trained on COCO
             model = torchvision.models.detection.maskrcnn_resnet50_fpn_v2(weights="DEFAULT")
     else :
         if args.version == "V1":
-            # load an instance segmentation model pre-trained on COCO
             model = torchvision.models.detection.maskrcnn_resnet50_fpn()
         elif args.version == "V2":
-            # load an instance segmentation model pre-trained on COCO
             model = torchvision.models.detection.maskrcnn_resnet50_fpn_v2()
 
     # get number of input features for the classifier

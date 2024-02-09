@@ -35,9 +35,9 @@ def get_args():
     parser.add_argument('--resume_name', type=str,  default='', help='checkpoint model name')
     parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'], help = 'net mode (train or test)')
     parser.add_argument('--pretrained', type=bool, default=False, help='load pretrained coco weights')
-    parser.add_argument('--use_amp', type=bool, default=True, help='use Automatic Mixed Precision (AMP) to speed-up training')
+    parser.add_argument('--use_amp', type=bool, default=False, help='use Automatic Mixed Precision (AMP) to speed-up training')
     parser.add_argument('--version', type=str, default='V1', choices=['V1', 'V2'], help = 'maskrcnn version V1 or V2')
-    #parser.add_argument('--cls_accessory', action='store_true', help='Add a binary classifier for the accessories')
+    parser.add_argument('--use_accessory', type=bool, default=True, help='add new feature as accessory')
 
     return parser.parse_args()
 
