@@ -12,6 +12,11 @@ from tqdm import tqdm
 from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
 from model.mask_rcnn import MaskRCNN
 
+CLASSES = ["bag","belt","boots","footwear",
+           "outer","dress","sunglasses",
+           "pants","top","shorts","skirt",
+           "headwear","scarf & tie",]
+
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
 # Enable cuDNN auto-tuner:
@@ -173,30 +178,25 @@ class Engine() :
                 image = (255.0 * (images[0] - images[0].min()) / (images[0].max() - images[0].min())).to(torch.uint8)
                 image = image[:3, ...]
 
-                preds = [(f"{label}: {score:.3f}", boxes, masks) for label, score, boxes, masks in zip(pred["labels"].detach().cpu(), pred["scores"].detach().cpu(), pred["boxes"].detach().cpu(), pred["masks"].detach().cpu()) if score >= 0.07]
+                preds = [(f"{CLASSES[label-1]}: {score:.3f}", boxes, masks) for label, score, boxes, masks in zip(pred["labels"].detach().cpu(), pred["scores"].detach().cpu(), pred["boxes"].detach().cpu(), pred["masks"].detach().cpu()) if score >= 0.4]
 
                 if len(preds) == 0 :
                     print("No prediction was found for this image")
                 else :
-                    pred_labels = list(list(zip(*preds))[0])
-                    pred_boxes = torch.as_tensor(np.array(list(list(zip(*preds))[1])))
-                    pred_boxes = pred_boxes.long()
-                    pred_masks = torch.as_tensor(np.array(list(list(zip(*preds))[2])))
-                    pred_masks = (pred_masks > 0.5).squeeze(1)
-                    
-                    """ pred_labels = [f"{label}: {score:.3f}" for label, score in zip(pred["labels"], pred["scores"])]
-                    pred_boxes = pred["boxes"].long()
-                    masks = (pred["masks"] > 0.7).squeeze(1) # valore di sicurezza """
+                    pred_labels, pred_boxes, pred_masks = [], [], []
+                    for (label, box, mask) in preds :
+                        pred_labels.append(label)
+                        pred_boxes.append(np.array(box))
+                        pred_masks.append(np.array(mask))
 
-                    output_image = draw_bounding_boxes(image, pred_boxes, pred_labels, colors="red")
-                    output_image = draw_segmentation_masks(output_image, pred_masks, alpha=0.5, colors="blue")
+                    pred_boxes = torch.tensor(pred_boxes, dtype=torch.float16).long()
+                    pred_masks = (torch.tensor(pred_masks, dtype=torch.float16) > 0.5).squeeze(1)
 
-                    plt.figure(figsize=(16, 16))
+                    output_image = draw_bounding_boxes(image, pred_boxes, pred_labels)
+                    output_image = draw_segmentation_masks(output_image, pred_masks, alpha=0.5)
+
+                    plt.figure(figsize=(20, 20))
                     plt.imshow(output_image.permute(1, 2, 0))
                     plt.show()
-
-                """ img = draw_bounding_boxes(images[0].type(torch.uint8), prediction[0]["boxes"].clone().detach(), width=3)
-                img = torchvision.transforms.ToPILImage()(img)
-                img.show() """
 
         return
