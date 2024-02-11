@@ -9,8 +9,9 @@ import torch.optim as optim
 import matplotlib.pyplot as plt
 
 from tqdm import tqdm
-from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
 from model.mask_rcnn import MaskRCNN
+from torch.utils.tensorboard import SummaryWriter
+from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
 
 CLASSES = ["bag","belt","boots","footwear",
            "outer","dress","sunglasses",
@@ -63,6 +64,8 @@ class Engine() :
             self.optimizer = optim.SGD(self.model.parameters(), lr=args.lr)
         elif args.opt == "Adam":
             self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)
+
+        self.summary = SummaryWriter(f'runs/modanet/') # will write in ./runs/modanet/ folder 
 
     def save_model(self, epoch, iteration=0) :
         # if you want to save the model
@@ -190,7 +193,7 @@ class Engine() :
                         pred_masks.append(np.array(mask))
 
                     pred_boxes = torch.tensor(pred_boxes, dtype=torch.float16).long()
-                    pred_masks = (torch.tensor(pred_masks, dtype=torch.float16) > 0.5).squeeze(1)
+                    pred_masks = (torch.tensor(pred_masks, dtype=torch.float16) > 0.6).squeeze(1)
 
                     output_image = draw_bounding_boxes(image, pred_boxes, pred_labels)
                     output_image = draw_segmentation_masks(output_image, pred_masks, alpha=0.5)
