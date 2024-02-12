@@ -3,8 +3,6 @@ import sys
 import math
 import torch
 import numpy as np
-import torchvision
-import torchvision
 import torch.optim as optim
 import matplotlib.pyplot as plt
 
@@ -46,7 +44,7 @@ class Engine() :
         self.model_name = args.model_name
         self.check_path = args.saving_path
         self.use_amp = args.use_amp
-
+        # remember: background has to be considered as the first class, so we add one more
         if args.use_accessory :
             num_classes = 15
         else :
@@ -65,7 +63,7 @@ class Engine() :
         elif args.opt == "Adam":
             self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)
 
-        self.summary = SummaryWriter(f'runs/modanet/') # will write in ./runs/modanet/ folder 
+        self.summary = SummaryWriter(log_dir="/runs/") # will write in ./runs/modanet folder 
 
     def save_model(self, epoch, iteration=0) :
         # if you want to save the model
@@ -181,7 +179,12 @@ class Engine() :
                 image = (255.0 * (images[0] - images[0].min()) / (images[0].max() - images[0].min())).to(torch.uint8)
                 image = image[:3, ...]
 
-                preds = [(f"{CLASSES[label-1]}: {score:.3f}", boxes, masks) for label, score, boxes, masks in zip(pred["labels"].detach().cpu(), pred["scores"].detach().cpu(), pred["boxes"].detach().cpu(), pred["masks"].detach().cpu()) if score >= 0.4]
+                preds = [(f"{CLASSES[label-1]}: {score:.3f}", boxes, masks) 
+                            for label, score, boxes, masks in zip(
+                                pred["labels"].detach().cpu(),
+                                pred["scores"].detach().cpu(),
+                                pred["boxes"].detach().cpu(),
+                                pred["masks"].detach().cpu()) if score >= 0.5]    
 
                 if len(preds) == 0 :
                     print("No prediction was found for this image")
@@ -193,12 +196,12 @@ class Engine() :
                         pred_masks.append(np.array(mask))
 
                     pred_boxes = torch.tensor(pred_boxes, dtype=torch.float16).long()
-                    pred_masks = (torch.tensor(pred_masks, dtype=torch.float16) > 0.6).squeeze(1)
+                    pred_masks = (torch.tensor(pred_masks, dtype=torch.float16) > 0.5).squeeze(1)
 
                     output_image = draw_bounding_boxes(image, pred_boxes, pred_labels)
-                    output_image = draw_segmentation_masks(output_image, pred_masks, alpha=0.5)
+                    output_image = draw_segmentation_masks(output_image, pred_masks, alpha=0.7)
 
-                    plt.figure(figsize=(20, 20))
+                    plt.figure(figsize=(10, 12))
                     plt.imshow(output_image.permute(1, 2, 0))
                     plt.show()
 

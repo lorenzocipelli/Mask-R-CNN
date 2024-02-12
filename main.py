@@ -1,13 +1,11 @@
 import torch
 import argparse
 
-from pprint import pprint
-
 from utils.utils import collate_fn
 
 from torch.utils.data import DataLoader
 from utils.modanet import ModaNetDataset
-from utils.utils import get_transform
+from utils.utils import transforms_pipeline
 from engine import Engine
 
 # print('getcwd: ', os.getcwd()) # working directory
@@ -57,7 +55,7 @@ def get_subsets(dataset) :
     return train, valid, test
 
 def main(args) :
-    modanet = ModaNetDataset(args, get_transform())
+    modanet = ModaNetDataset(args, transforms_pipeline())
 
     train_modanet, val_modanet, test_modanet = get_subsets(modanet)
 

@@ -12,7 +12,7 @@ from pycocotools.coco import COCO
 def collate_fn(batch):
    return tuple(zip(*batch)) 
 
-def get_transform():
+def transforms_pipeline():
     """
         Trasnformations to be made for data augmentation. 
         The follwing link shows all the possible transformations
@@ -24,6 +24,7 @@ def get_transform():
     """
     transforms = []
 
+    transforms.append(T.ColorJitter())
     transforms.append(T.RandomHorizontalFlip(0.5))
     transforms.append(T.ToDtype(torch.float, scale=True))
     transforms.append(T.ToPureTensor())
