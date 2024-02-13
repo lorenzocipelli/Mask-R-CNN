@@ -184,7 +184,7 @@ class Engine() :
                                 pred["labels"].detach().cpu(),
                                 pred["scores"].detach().cpu(),
                                 pred["boxes"].detach().cpu(),
-                                pred["masks"].detach().cpu()) if score >= 0.5]    
+                                pred["masks"].detach().cpu()) if score >= 0.6]    
 
                 if len(preds) == 0 :
                     print("No prediction was found for this image")
