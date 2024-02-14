@@ -105,7 +105,8 @@ class ModaNetDataset(torch.utils.data.Dataset):
         # have at least one BB, otherwhise it will crash
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         # suppose all instances are not crowd
-        iscrowd = torch.zeros((len(img_anns),), dtype=torch.int64)
+        iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
+                  
 
         target["boxes"] = boxes
         target["masks"] = torch.as_tensor(np.array(masks), dtype=torch.uint8)

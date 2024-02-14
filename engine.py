@@ -86,6 +86,7 @@ class Engine() :
             print("Model loaded!", flush=True)
 
     def train(self) :
+        self.evaluate() # DA TOGLIERE, è UNA PROVA
         self.model.train()
         num_elements_train = len(self.train_loader)
 
@@ -268,6 +269,13 @@ class Engine() :
 
     def evaluate(self) :
         """
+            The evalutation metric choosen is mAP, Mean Average Precision.
+            That is because COCO utilizes Average Precision to compare different models performances
+            on the detection task. The Mean Average Precision is just the mean computed over all
+            the average precisions for each class of the dataset
+        """
+
+        """
             From: https://lightning.ai/docs/torchmetrics/stable/detection/mean_average_precision.html
 
             The average precision is defined as the area under the precision-recall curve. 
@@ -290,13 +298,14 @@ class Engine() :
 
         # set it to evaluation mode
         self.model.eval()
+
         num_elements_validation = len(self.valid_loader)
         prog_bar = tqdm(self.valid_loader, total=num_elements_validation) # we work on the validation set
+
+        metric_bbox = MeanAveragePrecision(iou_type="bbox", class_metrics=True)
+        metric_mask = MeanAveragePrecision(iou_type="segm", class_metrics=True)
         # since we're not training, we don't need to calculate the gradients for our outputs
         with torch.no_grad():
-            metric_bbox = MeanAveragePrecision(iou_type="bbox", class_metrics=True)
-            metric_mask = MeanAveragePrecision(iou_type="segm", class_metrics=True)
-
             for i, data in enumerate(prog_bar):
                 images, targets = data
                 # from .....torchvision_tutorial.html
@@ -308,14 +317,19 @@ class Engine() :
                 metric_bbox.update(prediction, targets)
 
                 for pred in prediction:
-                    pred['masks']=pred['masks'].squeeze()
+                    pred['masks'] = pred['masks'].squeeze()
                     pred['masks'] = pred['masks'] > 0.5
 
                 metric_mask.update(prediction, targets)
 
-                if i % 50 == 0:
+                if i % 50 == 49:
                     result_bbox = metric_bbox.compute()
                     result_mask = metric_mask.compute()
+
+                    print('result_mask MAP: ')
+                    print(result_mask)
+                    print('result_bbox MAP: ')
+                    print(result_bbox)
 
             result_bbox = metric_bbox.compute()
             result_mask = metric_mask.compute()
