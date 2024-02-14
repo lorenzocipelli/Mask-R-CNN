@@ -14,7 +14,7 @@ def collate_fn(batch):
 
 def transforms_pipeline():
     """
-        Trasnformations to be made for data augmentation. 
+        Transformations to be made for data augmentation. 
         The follwing link shows all the possible transformations
         that are available with the new v0.15.0 torchvision:
         

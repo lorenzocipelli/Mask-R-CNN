@@ -47,8 +47,6 @@ def edge_agreement_loss(mask_logits, proposals, gt_masks, gt_labels, mask_matche
     labels = torch.cat(labels, dim=0)
     mask_targets = torch.cat(mask_targets, dim=0)
 
-    print("num labels: " + str(labels.shape[0]))
-
     totale_edge_loss = 0
     
     for idx in range(labels.shape[0]) :

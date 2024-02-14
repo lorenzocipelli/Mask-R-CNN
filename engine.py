@@ -86,6 +86,7 @@ class Engine() :
 
     def train(self) :
         self.model.train()
+        num_elements_train = len(self.train_loader)
 
         set_debug_apis(state=False)
         if self.use_amp :
@@ -93,7 +94,7 @@ class Engine() :
             scaler = torch.cuda.amp.GradScaler() 
 
         for epoch in range(self.epochs):
-            prog_bar = tqdm(self.train_loader, total=len(self.train_loader))
+            prog_bar = tqdm(self.train_loader, total=num_elements_train)
             """ 
                 Our model compute the losses for every head, and return them in a dictionary 
                 like the following :
@@ -101,7 +102,10 @@ class Engine() :
                  'loss_box_reg': tensor(0.3307, device='cuda:0', grad_fn=<DivBackward0>),
                  'loss_mask': tensor(1.2220, device='cuda:0', grad_fn=<BinaryCrossEntropyWithLogitsBackward0>),
                  'loss_objectness': tensor(0.3347, device='cuda:0', grad_fn=<BinaryCrossEntropyWithLogitsBackward0>),
-                 'loss_rpn_box_reg': tensor(0.0507, device='cuda:0', grad_fn=<DivBackward0>) } """
+                 'loss_rpn_box_reg': tensor(0.0507, device='cuda:0', grad_fn=<DivBackward0>) } 
+
+                 optionally even the edge agreement loss 
+            """
             
             if self.custom_loss :
                 loss_dict = {
@@ -122,6 +126,8 @@ class Engine() :
                 }
 
             running_loss = 0.0
+            initial_loss_dict = loss_dict
+            running_loss_dict = loss_dict
             
             for i, data in enumerate(prog_bar):
                 images, targets = data
@@ -147,8 +153,6 @@ class Engine() :
                     print(f"Loss is {loss_value}, stopping training")
                     print(loss_dict)
                     sys.exit(1)
-
-                print(loss_dict)
                 
                 if self.use_amp :
                     scaler.scale(losses).backward() # compute gradients
@@ -161,19 +165,60 @@ class Engine() :
 
                 # print statistics
                 running_loss += loss_value
-                if i % 200 == 199: # print every 200 mini-batches
-                    print(f'[it: {i + 1}] loss: {running_loss / 200:.3f}')
-                    running_loss = 0.0 
+                for loss in loss_dict :
+                    running_loss_dict[loss] += loss_dict[loss]
 
-                if i % 500 == 499:
+                if i % 200 == 199: # save the result into the SummaryWriter every 200 mini-batch
+                    self.summary.add_scalar("overall_loss_training", running_loss / 200, epoch * num_elements_train + i)
+                    for field_running_loss in running_loss_dict : # saving all training losses that the model outputs
+                        self.summary.add_scalar(field_running_loss, running_loss_dict[field_running_loss] / 200, epoch * num_elements_train + i)
+    
+                    print(f'[it: {i + 1}] loss: {running_loss / 200:.3f}')
+                    running_loss = 0.0 # reset the running loss overall value
+                    running_loss_dict = initial_loss_dict # reset the running loss dict
+
+                if i % 1000 == 999: # every 1000 mini-batch save the model
                     self.save_model(epoch, i)
 
-            self.save_model(epoch)
+            self.save_model()
+
+            # at the end of every epoch work on validation set
+            # The validation set is just used to give an approximation of 
+            # generalization error at any epoch but also, crucially, 
+            # for hyperparameter optimization.
+
+            self.validate(epoch) # pass the epoch for SummaryWriter of validation loss
 
         print("Training Finished !")
 
-    def validate(self) :
-        return
+    def validate(self, epoch) :
+        num_elements_validation = len(self.valid_loader)
+        prog_bar = tqdm(self.train_loader, total=num_elements_validation)
+        running_loss = 0.0
+
+        with torch.no_grad():
+            for i, data in enumerate(prog_bar):
+                images, targets = data
+                # from .....torchvision_tutorial.html
+                images =  list(image.to(DEVICE) for image in images)
+                targets = [{k: v.to(DEVICE) for k, v in t.items()} for t in targets]
+
+                if self.use_amp :
+                    with torch.cuda.amp.autocast(): 
+                        loss_dict = self.model(images, targets)
+                else :
+                    loss_dict = self.model(images, targets)
+
+                # from https://github.com/pytorch/vision/blob/main/references/detection/engine.py
+                # If you have multiple losses you can sum them and then call backwards once
+                losses = sum(loss for loss in loss_dict.values())
+                loss_value = losses.item()
+
+                # print statistics
+                running_loss += loss_value
+
+        # save the result into the SummaryWriter  at the end of validation
+        self.summary.add_scalar("overall_loss_training", running_loss / num_elements_validation, epoch)
     
     def test(self) :
         # set it to evaluation mode
