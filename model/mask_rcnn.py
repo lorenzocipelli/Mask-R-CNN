@@ -35,15 +35,16 @@ def get_mask_rcnn_model(num_classes, args) :
         num_classes
     )
 
-    old_roi_head = model.roi_heads
-    new_roi_head = CustomRoIHeads(old_roi_head.box_roi_pool, old_roi_head.box_head, old_roi_head.box_predictor, 
-                old_roi_head.proposal_matcher.high_threshold, old_roi_head.proposal_matcher.low_threshold, 
-                old_roi_head.fg_bg_sampler.batch_size_per_image, old_roi_head.fg_bg_sampler.positive_fraction,
-                old_roi_head.box_coder.weights, old_roi_head.score_thresh, old_roi_head.nms_thresh, old_roi_head.detections_per_img,
-                old_roi_head.mask_roi_pool, old_roi_head.mask_head, old_roi_head.mask_predictor,
-                old_roi_head.keypoint_roi_pool, old_roi_head.keypoint_head, old_roi_head.keypoint_predictor)
-    
-    model.roi_heads = new_roi_head
+    if args.custom_loss :
+        old_roi_head = model.roi_heads
+        new_roi_head = CustomRoIHeads(old_roi_head.box_roi_pool, old_roi_head.box_head, old_roi_head.box_predictor, 
+                    old_roi_head.proposal_matcher.high_threshold, old_roi_head.proposal_matcher.low_threshold, 
+                    old_roi_head.fg_bg_sampler.batch_size_per_image, old_roi_head.fg_bg_sampler.positive_fraction,
+                    old_roi_head.box_coder.weights, old_roi_head.score_thresh, old_roi_head.nms_thresh, old_roi_head.detections_per_img,
+                    old_roi_head.mask_roi_pool, old_roi_head.mask_head, old_roi_head.mask_predictor,
+                    old_roi_head.keypoint_roi_pool, old_roi_head.keypoint_head, old_roi_head.keypoint_predictor)
+        
+        model.roi_heads = new_roi_head
 
     return model
 

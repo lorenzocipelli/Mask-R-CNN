@@ -10,6 +10,9 @@ from torchvision.models.detection.roi_heads import project_masks_on_boxes
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+def l2_loss(y_true, y_pred):
+        return torch.mean(torch.pow(torch.abs(y_pred - y_true), 2), axis=-1)
+
 # nuova loss introdotta con l'edge agreement: L_edge
 def edge_agreement_loss(mask_logits, proposals, gt_masks, gt_labels, mask_matched_idxs) :
     # type: (Tensor, List[Tensor], List[Tensor], List[Tensor], List[Tensor]) -> Tensor
@@ -44,6 +47,10 @@ def edge_agreement_loss(mask_logits, proposals, gt_masks, gt_labels, mask_matche
     labels = torch.cat(labels, dim=0)
     mask_targets = torch.cat(mask_targets, dim=0)
 
+    print("num labels: " + str(labels.shape[0]))
+
+    totale_edge_loss = 0
+    
     for idx in range(labels.shape[0]) :
         gt_label = labels[idx]
         # we need to compute edge detection on both GT and predicted mask
@@ -56,9 +63,15 @@ def edge_agreement_loss(mask_logits, proposals, gt_masks, gt_labels, mask_matche
         sobel_h_output = F.conv2d(gt_mask.to(DEVICE), sobel_h_weights.type(torch.cuda.FloatTensor).to(DEVICE))
         filtered_gt = F.conv2d(sobel_h_output.to(DEVICE), sobel_v_weights.type(torch.cuda.FloatTensor).to(DEVICE))
 
+        pixel_wise_edge_loss = 0
+        if filtered_gt.size()[0] > 0 :
+            pixel_wise_edge_loss = l2_loss(filtered_gt, filtered_pred)
 
+        # return the mean of the pixelwise edge agreement loss
+        edge_loss = torch.mean(pixel_wise_edge_loss)
+        totale_edge_loss += edge_loss
 
-    return
+    return totale_edge_loss / labels.shape[0]
 
 class CustomRoIHeads(rh.RoIHeads):
 
@@ -157,9 +170,8 @@ class CustomRoIHeads(rh.RoIHeads):
                 loss_mask = {"loss_mask": rcnn_loss_mask}
 
                 # edge agreement loss
-                edge_agreement_loss(mask_logits, mask_proposals, gt_masks, gt_labels, pos_matched_idxs)
-                #rcnn_loss_mask = edge_agreement_loss(mask_logits, mask_proposals, gt_masks, gt_labels, pos_matched_idxs)
-                #loss_mask = {"loss_edge_agreement": rcnn_loss_mask}
+                loss_edge_agreement = edge_agreement_loss(mask_logits, mask_proposals, gt_masks, gt_labels, pos_matched_idxs)
+                loss_mask = {"loss_edge_agreement": loss_edge_agreement}
             else:
                 labels = [r["labels"] for r in result]
                 masks_probs = rh.maskrcnn_inference(mask_logits, labels)

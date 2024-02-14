@@ -37,6 +37,8 @@ def get_args():
     parser.add_argument('--version', type=str, default='V1', choices=['V1', 'V2'], help = 'maskrcnn version V1 or V2')
     parser.add_argument('--use_accessory', type=bool, default=True, help='add new feature as accessory')
 
+    parser.add_argument('--custom_loss', type=bool, default=False, help='implement an addictive custom loss')
+
     return parser.parse_args()
 
 def get_subsets(dataset) :

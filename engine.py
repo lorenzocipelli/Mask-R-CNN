@@ -44,6 +44,7 @@ class Engine() :
         self.model_name = args.model_name
         self.check_path = args.saving_path
         self.use_amp = args.use_amp
+        self.custom_loss = args.custom_loss
         # remember: background has to be considered as the first class, so we add one more
         if args.use_accessory :
             num_classes = 15
@@ -102,13 +103,23 @@ class Engine() :
                  'loss_objectness': tensor(0.3347, device='cuda:0', grad_fn=<BinaryCrossEntropyWithLogitsBackward0>),
                  'loss_rpn_box_reg': tensor(0.0507, device='cuda:0', grad_fn=<DivBackward0>) } """
             
-            loss_dict = {
-                'loss_classifier': 0,
-                'loss_box_reg': 0,
-                'loss_mask': 0,
-                'loss_objectness': 0,
-                'loss_rpn_box_reg': 0
-            }
+            if self.custom_loss :
+                loss_dict = {
+                    'loss_classifier': 0,
+                    'loss_box_reg': 0,
+                    'loss_mask': 0,
+                    'loss_objectness': 0,
+                    'loss_rpn_box_reg': 0,
+                    'loss_edge_agreement': 0
+                }
+            else :
+                loss_dict = {
+                    'loss_classifier': 0,
+                    'loss_box_reg': 0,
+                    'loss_mask': 0,
+                    'loss_objectness': 0,
+                    'loss_rpn_box_reg': 0
+                }
 
             running_loss = 0.0
             
@@ -137,6 +148,8 @@ class Engine() :
                     print(loss_dict)
                     sys.exit(1)
 
+                print(loss_dict)
+                
                 if self.use_amp :
                     scaler.scale(losses).backward() # compute gradients
                     scaler.step(self.optimizer) # update parameters of the model
