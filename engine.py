@@ -8,6 +8,7 @@ import matplotlib.pyplot as plt
 
 from tqdm import tqdm
 from model.mask_rcnn import MaskRCNN
+from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
 
@@ -191,11 +192,13 @@ class Engine() :
 
         print("Training Finished !")
 
+        self.evaluate() # compute the mAP metrics over the validation set
+
     def validate(self, epoch) :
         num_elements_validation = len(self.valid_loader)
         prog_bar = tqdm(self.train_loader, total=num_elements_validation)
         running_loss = 0.0
-
+        # since we're not training, we don't need to calculate the gradients for our outputs
         with torch.no_grad():
             for i, data in enumerate(prog_bar):
                 images, targets = data
@@ -263,4 +266,62 @@ class Engine() :
                     plt.imshow(output_image.permute(1, 2, 0))
                     plt.show()
 
-        return
+    def evaluate(self) :
+        """
+            From: https://lightning.ai/docs/torchmetrics/stable/detection/mean_average_precision.html
+
+            The average precision is defined as the area under the precision-recall curve. 
+            For object detection the recall and precision are defined based on the intersection of union (IoU) 
+            between the predicted bounding boxes and the ground truth bounding boxes e.g. if two boxes have an IoU > t 
+            (with t being some threshold) they are considered a match and therefore considered a true positive. 
+            The precision is then defined as the number of true positives divided by the number of all detected 
+            boxes and the recall is defined as the number of true positives divided by the number of all ground boxes.
+            
+            How to compute mAP:
+                1)  Generate the prediction scores using the model
+                2)  Convert the prediction scores to class labels
+                3)  Calculate the confusion matrix: TP, FP, TN, FN
+                4)  Calculate the precision and recall metrics
+                5)  Calculate the area under the precision-recall curve
+                6)  Measure the average precision
+                7)  The mAP is calculated by finding Average Precision(AP) for each class and then average over a number of classes
+
+        """
+
+        # set it to evaluation mode
+        self.model.eval()
+        num_elements_validation = len(self.valid_loader)
+        prog_bar = tqdm(self.valid_loader, total=num_elements_validation) # we work on the validation set
+        # since we're not training, we don't need to calculate the gradients for our outputs
+        with torch.no_grad():
+            metric_bbox = MeanAveragePrecision(iou_type="bbox", class_metrics=True)
+            metric_mask = MeanAveragePrecision(iou_type="segm", class_metrics=True)
+
+            for i, data in enumerate(prog_bar):
+                images, targets = data
+                # from .....torchvision_tutorial.html
+                images =  list(image.to(DEVICE) for image in images)
+                targets = [{k: v.to(DEVICE) for k, v in t.items()} for t in targets]
+
+                prediction = self.model(images)
+
+                metric_bbox.update(prediction, targets)
+
+                for pred in prediction:
+                    pred['masks']=pred['masks'].squeeze()
+                    pred['masks'] = pred['masks'] > 0.5
+
+                metric_mask.update(prediction, targets)
+
+                if i % 50 == 0:
+                    result_bbox = metric_bbox.compute()
+                    result_mask = metric_mask.compute()
+
+            result_bbox = metric_bbox.compute()
+            result_mask = metric_mask.compute()
+
+            # Write content to the file
+            print('result_mask MAP: ')
+            print(result_mask)
+            print('result_bbox MAP: ')
+            print(result_bbox)
