@@ -21,6 +21,9 @@ CLASSES = ["bag","belt","boots","footwear",
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 
+MAX_TO_PRINT = 10
+IMGS_PER_ROW = 5
+
 # Enable cuDNN auto-tuner:
 # Autotuner runs a short benchmark and selects the kernel 
 # with the best performance on a given hardware for a given input size
@@ -225,13 +228,22 @@ class Engine() :
         self.summary.add_scalar("overall_loss_validation", running_loss / num_elements_validation, epoch)
         print("Validation of epoch " + str(epoch) + " finished !")
     
-    def test(self) :
+    def test(self, want_to_print=12) :
+        if want_to_print > MAX_TO_PRINT :
+            want_to_print = MAX_TO_PRINT # limit the value if necessary
+        elif want_to_print <= 0 :
+            want_to_print = 1
+        
+        output_images_list = []
         # set it to evaluation mode
         self.model.eval()
         # since we're not training, we don't need to calculate the gradients for our outputs
         with torch.no_grad():
             prog_bar = tqdm(self.test_loader, total=len(self.test_loader))
             for i, data in enumerate(prog_bar):
+                if i >= want_to_print : # stop when we have the requested number of images
+                    break
+
                 images, targets = data
 
                 images =  list(image.to(DEVICE) for image in images)
@@ -263,10 +275,27 @@ class Engine() :
 
                     output_image = draw_bounding_boxes(image, pred_boxes, pred_labels)
                     output_image = draw_segmentation_masks(output_image, pred_masks, alpha=0.7)
+                    output_images_list.append(output_image)
 
-                    plt.figure(figsize=(10, 12))
-                    plt.imshow(output_image.permute(1, 2, 0))
-                    plt.show()
+            # the number of element for each row is fixed (number of columns)
+            # the number of columns depends on the number of images one want to print
+            num_rows = math.ceil(want_to_print/IMGS_PER_ROW)
+            f, axarr = plt.subplots(num_rows, IMGS_PER_ROW)
+
+            for x in range(num_rows) :
+                for y in range(IMGS_PER_ROW) :
+                    index = x*IMGS_PER_ROW + y
+                    if index > len(output_images_list) :
+                        break
+                    else :
+                        axarr[x,y].imshow(output_images_list[x*IMGS_PER_ROW + y].permute(1, 2, 0))
+
+            #plt.figure(figsize=(10, 12))
+            #plt.imshow(output_image.permute(1, 2, 0))
+            f.set_figheight(10)
+            f.set_figwidth(19)
+            f.tight_layout()
+            plt.show()
 
     def evaluate(self) :
         """
