@@ -1,4 +1,6 @@
 import os
+os.environ['TF_ENABLE_ONEDNN_OPTS'] = '0'
+
 import sys
 import math
 import torch
@@ -65,7 +67,7 @@ class Engine() :
         elif args.opt == "Adam":
             self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)
 
-        self.summary = SummaryWriter(log_dir="/runs/") # will write in ./runs/modanet folder 
+        self.summary = SummaryWriter(log_dir=f'/runs/modanet') # will write in ./runs/ folder 
 
     def save_model(self, epoch, iteration=0) :
         # if you want to save the model
@@ -86,7 +88,7 @@ class Engine() :
             print("Model loaded!", flush=True)
 
     def train(self) :
-        self.evaluate() # DA TOGLIERE, è UNA PROVA
+        print("Training Begins !")
         self.model.train()
         num_elements_train = len(self.train_loader)
 
@@ -109,23 +111,16 @@ class Engine() :
                  optionally even the edge agreement loss 
             """
             
-            if self.custom_loss :
-                loss_dict = {
-                    'loss_classifier': 0,
-                    'loss_box_reg': 0,
-                    'loss_mask': 0,
-                    'loss_objectness': 0,
-                    'loss_rpn_box_reg': 0,
-                    'loss_edge_agreement': 0
-                }
-            else :
-                loss_dict = {
+            loss_dict = {
                     'loss_classifier': 0,
                     'loss_box_reg': 0,
                     'loss_mask': 0,
                     'loss_objectness': 0,
                     'loss_rpn_box_reg': 0
                 }
+
+            if self.custom_loss : # optionally add key, value for edge agreement loss
+                 loss_dict.update({'loss_edge_agreement': 0})                 
 
             running_loss = 0.0
             initial_loss_dict = loss_dict
@@ -141,6 +136,8 @@ class Engine() :
                 self.optimizer.zero_grad()
 
                 if self.use_amp :
+                    # instances of autocast serve as context managers or decorators 
+                    # that allow regions of the script to run in mixed precision
                     with torch.cuda.amp.autocast(): 
                         loss_dict = self.model(images, targets)
                 else :
@@ -156,7 +153,7 @@ class Engine() :
                     print(loss_dict)
                     sys.exit(1)
                 
-                if self.use_amp :
+                if self.use_amp : # run in mixed precision
                     scaler.scale(losses).backward() # compute gradients
                     scaler.step(self.optimizer) # update parameters of the model
                     scaler.update()
@@ -174,7 +171,7 @@ class Engine() :
                     self.summary.add_scalar("overall_loss_training", running_loss / 200, epoch * num_elements_train + i)
                     for field_running_loss in running_loss_dict : # saving all training losses that the model outputs
                         self.summary.add_scalar(field_running_loss, running_loss_dict[field_running_loss] / 200, epoch * num_elements_train + i)
-    
+
                     print(f'[it: {i + 1}] loss: {running_loss / 200:.3f}')
                     running_loss = 0.0 # reset the running loss overall value
                     running_loss_dict = initial_loss_dict # reset the running loss dict
@@ -195,7 +192,10 @@ class Engine() :
 
         self.evaluate() # compute the mAP metrics over the validation set
 
+        self.summary.close()
+
     def validate(self, epoch) :
+        print("Validation of epoch " + str(epoch) + " begins !")
         num_elements_validation = len(self.valid_loader)
         prog_bar = tqdm(self.train_loader, total=num_elements_validation)
         running_loss = 0.0
@@ -222,7 +222,8 @@ class Engine() :
                 running_loss += loss_value
 
         # save the result into the SummaryWriter  at the end of validation
-        self.summary.add_scalar("overall_loss_training", running_loss / num_elements_validation, epoch)
+        self.summary.add_scalar("overall_loss_validation", running_loss / num_elements_validation, epoch)
+        print("Validation of epoch " + str(epoch) + " finished !")
     
     def test(self) :
         # set it to evaluation mode
@@ -296,12 +297,15 @@ class Engine() :
 
         """
 
+        print("Model evaluation begins !")
         # set it to evaluation mode
         self.model.eval()
 
         num_elements_validation = len(self.valid_loader)
         prog_bar = tqdm(self.valid_loader, total=num_elements_validation) # we work on the validation set
-
+        # From: https://lightning.ai/docs/torchmetrics/stable/detection/mean_average_precision.html
+        # our model return the predicted boxes in ``[x1, y1, x2, y2]`` format
+        # which is the default box_format for MeanAveragePrecision method 
         metric_bbox = MeanAveragePrecision(iou_type="bbox", class_metrics=True)
         metric_mask = MeanAveragePrecision(iou_type="segm", class_metrics=True)
         # since we're not training, we don't need to calculate the gradients for our outputs
@@ -322,20 +326,22 @@ class Engine() :
 
                 metric_mask.update(prediction, targets)
 
-                if i % 50 == 49:
+                """ if i % 50 == 49:
                     result_bbox = metric_bbox.compute()
                     result_mask = metric_mask.compute()
 
                     print('result_mask MAP: ')
                     print(result_mask)
                     print('result_bbox MAP: ')
-                    print(result_bbox)
+                    print(result_bbox) """
 
             result_bbox = metric_bbox.compute()
             result_mask = metric_mask.compute()
 
+            print("Model evaluation finished !\n")
+
             # Write content to the file
             print('result_mask MAP: ')
             print(result_mask)
-            print('result_bbox MAP: ')
+            print('\nresult_bbox MAP: ')
             print(result_bbox)

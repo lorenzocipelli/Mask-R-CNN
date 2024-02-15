@@ -104,9 +104,8 @@ class ModaNetDataset(torch.utils.data.Dataset):
         # this area computation mathod works only if all images
         # have at least one BB, otherwhise it will crash
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
-        # suppose all instances are not crowd
+        # suppose all instances are not crowd, boxes.shape[0] for MeanAveragePrecision computation
         iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
-                  
 
         target["boxes"] = boxes
         target["masks"] = torch.as_tensor(np.array(masks), dtype=torch.uint8)

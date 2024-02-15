@@ -13,17 +13,25 @@ DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
 def l2_loss(y_true, y_pred):
         return torch.mean(torch.pow(torch.abs(y_pred - y_true), 2), axis=-1)
 
-# nuova loss introdotta con l'edge agreement: L_edge
+# new loss -> edge agreement: L_edge
 def edge_agreement_loss(mask_logits, proposals, gt_masks, gt_labels, mask_matched_idxs) :
     # type: (Tensor, List[Tensor], List[Tensor], List[Tensor], List[Tensor]) -> Tensor
     """
-    Args:
-        proposals (list[BoxList])
-        mask_logits (Tensor)
-        targets (list[BoxList])
+        From: https://arxiv.org/pdf/1809.07069.pdf
 
-    Return:
-        mask_loss (Tensor): scalar tensor containing the loss
+        This method applies, for each of the outputs of the Mask Head, a Sobel filtering on the GT 28x28 mask
+        corresponding to the predicted 28x28 output of the head, and on the output aswell. After this computation
+        the custom loss is established by the generalized power mean of the absolute difference between 
+        the target y_hat and the prediction y
+        We need the same arguments as for the maskrcnn_loss
+
+        Args:
+            proposals (list[BoxList])
+            mask_logits (Tensor)
+            targets (list[BoxList])
+
+        Return:
+            mask_loss (Tensor): scalar tensor containing the loss
     """
 
     sobel_h = torch.tensor([[-1.,-2.,-1.],
@@ -47,7 +55,7 @@ def edge_agreement_loss(mask_logits, proposals, gt_masks, gt_labels, mask_matche
     labels = torch.cat(labels, dim=0)
     mask_targets = torch.cat(mask_targets, dim=0)
 
-    totale_edge_loss = 0
+    total_edge_loss = 0
     
     for idx in range(labels.shape[0]) :
         gt_label = labels[idx]
@@ -67,11 +75,19 @@ def edge_agreement_loss(mask_logits, proposals, gt_masks, gt_labels, mask_matche
 
         # return the mean of the pixelwise edge agreement loss
         edge_loss = torch.mean(pixel_wise_edge_loss)
-        totale_edge_loss += edge_loss
+        total_edge_loss += edge_loss
 
-    return totale_edge_loss / labels.shape[0]
+    return total_edge_loss / labels.shape[0]
 
 class CustomRoIHeads(rh.RoIHeads):
+    """
+        The only difference between this class and the original RoiHeads from PyTorch
+        is that this class in the forward method does return, other than the classification loss and
+        the BB loss, it returns also the new Edge Agreement Loss
+        This loss is implemented just for Image Segmentation, meaning that we want to predict a mask for 
+        a predicted object returned from the possible RoIs. That's why the new loss is not implemented for
+        the keypoint predictor
+    """
 
     def forward(
         self,
@@ -157,8 +173,8 @@ class CustomRoIHeads(rh.RoIHeads):
                 raise Exception("Expected mask_roi_pool to be not None")
 
             loss_mask = {}
+            loss_edge_agreement = {}
             if self.training:
-                # compute the loss with respect to the selected mask and the ground truth mask
                 if targets is None or pos_matched_idxs is None or mask_logits is None:
                     raise ValueError("targets, pos_matched_idxs, mask_logits cannot be None when training")
 
@@ -167,16 +183,18 @@ class CustomRoIHeads(rh.RoIHeads):
                 rcnn_loss_mask = rh.maskrcnn_loss(mask_logits, mask_proposals, gt_masks, gt_labels, pos_matched_idxs)
                 loss_mask = {"loss_mask": rcnn_loss_mask}
 
-                # edge agreement loss
+                # edge agreement loss :
+                # compute the loss with respect to the selected mask and the ground truth mask
                 loss_edge_agreement = edge_agreement_loss(mask_logits, mask_proposals, gt_masks, gt_labels, pos_matched_idxs)
-                loss_mask = {"loss_edge_agreement": loss_edge_agreement}
+                loss_edge_agreement = {"loss_edge_agreement": loss_edge_agreement}
             else:
                 labels = [r["labels"] for r in result]
                 masks_probs = rh.maskrcnn_inference(mask_logits, labels)
                 for mask_prob, r in zip(masks_probs, result):
                     r["masks"] = mask_prob
 
-            losses.update(loss_mask)
+            losses.update(loss_mask) # add mask loss to the losses dictionary
+            losses.update(loss_edge_agreement) # add edge agreement loss to the losses dictionary
 
         # keep none checks in if conditional so torchscript will conditionally
         # compile each branch
