@@ -101,6 +101,7 @@ class Engine() :
             scaler = torch.cuda.amp.GradScaler() 
 
         for epoch in range(self.epochs):
+            print("Training of epoch " + str(epoch) + " Begins !")
             prog_bar = tqdm(self.train_loader, total=num_elements_train)
             """ 
                 Our model compute the losses for every head, and return them in a dictionary 
@@ -177,12 +178,21 @@ class Engine() :
 
                     print(f'[it: {i + 1}] loss: {running_loss / 200:.3f}')
                     running_loss = 0.0 # reset the running loss overall value
-                    running_loss_dict = initial_loss_dict # reset the running loss dict
+                    # reset the running loss dict
+                    running_loss_dict = {
+                        'loss_classifier': 0,
+                        'loss_box_reg': 0,
+                        'loss_mask': 0,
+                        'loss_objectness': 0,
+                        'loss_rpn_box_reg': 0
+                    }
+                    if self.custom_loss : # optionally add key, value for edge agreement loss
+                        running_loss_dict.update({'loss_edge_agreement': 0})
 
                 if i % 1000 == 999: # every 1000 mini-batch save the model
                     self.save_model(epoch, i)
 
-            self.save_model()
+            self.save_model(epoch)
 
             # at the end of every epoch work on validation set
             # The validation set is just used to give an approximation of 
@@ -200,7 +210,7 @@ class Engine() :
     def validate(self, epoch) :
         print("Validation of epoch " + str(epoch) + " begins !")
         num_elements_validation = len(self.valid_loader)
-        prog_bar = tqdm(self.train_loader, total=num_elements_validation)
+        prog_bar = tqdm(self.valid_loader, total=num_elements_validation)
         running_loss = 0.0
         # since we're not training, we don't need to calculate the gradients for our outputs
         with torch.no_grad():
