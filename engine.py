@@ -127,7 +127,6 @@ class Engine() :
                  loss_dict.update({'loss_edge_agreement': 0})                 
 
             running_loss = 0.0
-            initial_loss_dict = loss_dict
             running_loss_dict = loss_dict
             
             for i, data in enumerate(prog_bar):
@@ -364,15 +363,6 @@ class Engine() :
                     pred['masks'] = pred['masks'] > 0.5
 
                 metric_mask.update(prediction, targets)
-
-                """ if i % 50 == 49:
-                    result_bbox = metric_bbox.compute()
-                    result_mask = metric_mask.compute()
-
-                    print('result_mask MAP: ')
-                    print(result_mask)
-                    print('result_bbox MAP: ')
-                    print(result_bbox) """
 
             result_bbox = metric_bbox.compute()
             result_mask = metric_mask.compute()

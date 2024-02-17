@@ -29,15 +29,15 @@ def get_args():
     parser.add_argument('--dataset_path', type=str, default='./dataset', help='path were to save/get the dataset')
     parser.add_argument('--saving_path', type=str, default='./model/checkpoints/', help='path where to save the trained model')
 
-    parser.add_argument('--resume', type=bool, default=False, help='load the model from checkpoint (true or false)')
+    parser.add_argument('--resume', action='store_true', help='load the model from checkpoint (true or false)')
     parser.add_argument('--resume_name', type=str,  default='', help='checkpoint model name')
     parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'], help = 'net mode (train or test)')
-    parser.add_argument('--pretrained', type=bool, default=False, help='load pretrained coco weights')
-    parser.add_argument('--use_amp', type=bool, default=False, help='use Automatic Mixed Precision (AMP) to speed-up training')
+    parser.add_argument('--pretrained', action='store_true', help='load pretrained coco weights')
+    parser.add_argument('--use_amp', action='store_true', help='use Automatic Mixed Precision (AMP) to speed-up training')
     parser.add_argument('--version', type=str, default='V1', choices=['V1', 'V2'], help = 'maskrcnn version V1 or V2')
-    parser.add_argument('--use_accessory', type=bool, default=True, help='add new feature as accessory')
+    parser.add_argument('--use_accessory', action='store_true', help='add new feature as accessory')
 
-    parser.add_argument('--custom_loss', type=bool, default=False, help='implement an addictive custom loss')
+    parser.add_argument('--custom_loss', action='store_true', help='implement an addictive custom loss')
 
     return parser.parse_args()
 
