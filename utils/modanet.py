@@ -75,7 +75,7 @@ class ModaNetDataset(torch.utils.data.Dataset):
         """
         
         target = {}
-        boxes, masks, labels = [], [], []
+        boxes, masks, labels, new_accessory = [], [], [], []
 
         for ann in img_anns : # for every annotation got for the image
             mask = self.annotations.annToMask(ann) # we got the mask in binary 2D array
@@ -90,11 +90,18 @@ class ModaNetDataset(torch.utils.data.Dataset):
             boxes.append([x1,y1,x2,y2])
             labels.append(ann["category_id"]) # get the category from annotation
 
+            """
+                Project Specification :
+                You have to automatically generate the ground truth during the training following the rule: 
+                    "True if class is one of the following: bag, belt, sunglasses, headwear, scarf tie. Otherwise is false".
+
+                This request implies the training of a binary classifier
+            """
             if self.use_accessory: # generate ground truth for accessory
                 if ann['category_id'] in ACCESSORIES_IDs: 
-                    masks.append(mask) # same mask as for the accessory (sunglasses, bag, belt ...)
-                    boxes.append([x1,y1,x2,y2]) # same BBs as for the accessory
-                    labels.append(NEW_ACCESSORY_ID) # put as label the new accessory category ID 
+                    new_accessory.append(1)
+                else :
+                    new_accessory.append(0)
             
         # THIRD PART: put everything inside img and target
             
@@ -106,6 +113,7 @@ class ModaNetDataset(torch.utils.data.Dataset):
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         # suppose all instances are not crowd, boxes.shape[0] for MeanAveragePrecision computation
         iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
+        new_accessories = torch.as_tensor(new_accessory,  dtype=torch.float32)
 
         target["boxes"] = boxes
         target["masks"] = torch.as_tensor(np.array(masks), dtype=torch.uint8)
@@ -113,6 +121,8 @@ class ModaNetDataset(torch.utils.data.Dataset):
         target["image_id"] = torch.tensor([img_id]) # to allow v.to(DEVICE)
         target["area"] = area
         target["iscrowd"] = iscrowd
+        if self.use_accessory:
+            target["accessory"] = new_accessories
 
         if self.transforms is not None: # apply transforms if they are defined
             img, target = self.transforms(img, target)

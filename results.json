@@ -1,0 +1,22 @@
+{"no_pretrain_accessory" : {
+    "result_mask_MAP" : {"map": "tensor(0.0972)", "map_50": "tensor(0.2348)", "map_75": "tensor(0.0708)", "map_small": "tensor(0.0082)", "map_medium": "tensor(0.0535)", "map_large": "tensor(0.1336)", "mar_1": "tensor(0.1870)", "mar_10": "tensor(0.2221)", "mar_100": "tensor(0.2231)", "mar_small": "tensor(0.0644)", "mar_medium": "tensor(0.1715)", "mar_large": "tensor(0.2035)", 
+        "map_per_class": "tensor([0.0733, 0.0666, 0.0254, 0.0197, 0.0514, 0.1834, 0.1060, 0.1918, 0.1134, 0.1913, 0.2293, 0.0867, 0.0224, 0.0000])", 
+        "mar_100_per_class": "tensor([0.1934, 0.1637, 0.1559, 0.1075, 0.1584, 0.3584, 0.2363, 0.3715, 0.2551, 0.3771, 0.4572, 0.2118, 0.0765, 0.0000])", 
+        "classes": "tensor([ 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14], dtype=torch.int32)"},
+    "result_bbox_MAP" : {"map": "tensor(0.1627)", "map_50": "tensor(0.3468)", "map_75": "tensor(0.1389)", "map_small": "tensor(0.0241)", "map_medium": "tensor(0.1026)", "map_large": "tensor(0.1709)", "mar_1": "tensor(0.2638)", "mar_10": "tensor(0.3573)", "mar_100": "tensor(0.3629)", "mar_small": "tensor(0.0578)", "mar_medium": "tensor(0.2635)", "mar_large": "tensor(0.3513)", 
+        "map_per_class": "tensor([0.0858, 0.1044, 0.0454, 0.0518, 0.2806, 0.2654, 0.1703, 0.3108, 0.1924, 0.2289, 0.2662, 0.2265, 0.0488, 0.0000])", 
+        "mar_100_per_class": "tensor([0.2837, 0.2761, 0.2446, 0.2682, 0.5001, 0.5192, 0.3705, 0.5471, 0.4225, 0.4560, 0.5277, 0.4425, 0.2230, 0.0000])", 
+        "classes": "tensor([ 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13, 14], dtype=torch.int32)"}
+    },
+    "no_pretrain_no_accessory": {
+        "result_mask_MAP" : {"map": "tensor(0.1059)", "map_50": "tensor(0.2568)", "map_75": "tensor(0.0771)", "map_small": "tensor(0.0078)", "map_medium": "tensor(0.0600)", "map_large": "tensor(0.1450)", "mar_1": "tensor(0.1996)", "mar_10": "tensor(0.2378)", "mar_100": "tensor(0.2389)", "mar_small": "tensor(0.0475)", "mar_medium": "tensor(0.1776)", "mar_large": "tensor(0.2240)", 
+            "map_per_class": "tensor([0.0793, 0.0502, 0.0324, 0.0120, 0.0499, 0.1685, 0.1053, 0.1938, 0.1208, 0.2105, 0.2374, 0.0897, 0.0276])",
+            "mar_100_per_class": "tensor([0.1917, 0.1319, 0.1653, 0.0884, 0.1589, 0.3544, 0.2153, 0.3778, 0.2667, 0.3969, 0.4740, 0.2030, 0.0812])", 
+            "classes": "tensor([ 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13], dtype=torch.int32)"},
+        "result_bbox_MAP" : {"map": "tensor(0.1817)", "map_50": "tensor(0.3826)", "map_75": "tensor(0.1545)", "map_small": "tensor(0.0253)", "map_medium": "tensor(0.1150)", "map_large": "tensor(0.1804)", "mar_1": "tensor(0.2902)", "mar_10": "tensor(0.3920)", "mar_100": "tensor(0.3974)", "mar_small": "tensor(0.0630)", "mar_medium": "tensor(0.2868)", "mar_large": "tensor(0.3643)", 
+            "map_per_class": "tensor([0.0894, 0.0940, 0.0511, 0.0442, 0.2790, 0.2544, 0.1930, 0.3260, 0.2019, 0.2547, 0.2742, 0.2327, 0.0681])", 
+            "mar_100_per_class": "tensor([0.2773, 0.2723, 0.2686, 0.2543, 0.5005, 0.5157, 0.3931, 0.5712, 0.4338, 0.4750, 0.5365, 0.4323, 0.2358])", 
+            "classes": "tensor([ 1,  2,  3,  4,  5,  6,  7,  8,  9, 10, 11, 12, 13], dtype=torch.int32)"}
+    }
+}
+       

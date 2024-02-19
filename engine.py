@@ -56,7 +56,7 @@ class Engine() :
             num_classes = 15
         else :
             num_classes = 14
-
+        # qui andrà modificato con 14 fisso, l'ultima classe non serve a nulla
         self.model = MaskRCNN(num_classes=num_classes, args=args).to(DEVICE)
 
         if args.resume :

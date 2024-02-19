@@ -4,6 +4,7 @@ import torch
 import torch.nn.functional as F
 import torchvision
 from torch import nn, Tensor
+from torchvision.ops import boxes as box_ops
 
 import torchvision.models.detection.roi_heads as rh
 from torchvision.models.detection.roi_heads import project_masks_on_boxes
@@ -79,6 +80,60 @@ def edge_agreement_loss(mask_logits, proposals, gt_masks, gt_labels, mask_matche
 
     return total_edge_loss / labels.shape[0]
 
+def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
+    # type: (Tensor, Tensor, List[Tensor], List[Tensor]) -> Tuple[Tensor, Tensor]
+    """
+    Computes the loss for Faster R-CNN.
+
+    Args:
+        class_logits (Tensor)
+        box_regression (Tensor)
+        labels (list[BoxList])
+        regression_targets (Tensor)
+
+    Returns:
+        classification_loss (Tensor)
+        box_loss (Tensor)
+    """
+
+    """ print("DENTRO FASTRCNN_LOSS")
+    print(class_logits.size())
+    print(class_logits) # le logits servono per la cross-entropy, per stabilire se ho predetto correttamente la classe
+    print(box_regression.size())
+    print(box_regression) # servono alla smooth_l1_loss per definire quanto il modello è andato lontano dalla BB target """
+    
+    labels = torch.cat(labels, dim=0)
+    regression_targets = torch.cat(regression_targets, dim=0)
+
+    """ print(len(labels))
+    print(labels[0].size())
+    print(labels)
+    for label in labels :
+        print(label)
+    print(len(regression_targets))
+    print(regression_targets[0].size())
+    print(regression_targets)  """
+
+    classification_loss = F.cross_entropy(class_logits, labels, ignore_index=14)
+
+    # get indices that correspond to the regression targets for
+    # the corresponding ground truth labels, to be used with
+    # advanced indexing
+    sampled_pos_inds_subset = torch.where(labels > 0)[0]
+    labels_pos = labels[sampled_pos_inds_subset]
+    N, num_classes = class_logits.shape
+    box_regression = box_regression.reshape(N, box_regression.size(-1) // 4, 4)
+
+    box_loss = F.smooth_l1_loss(
+        box_regression[sampled_pos_inds_subset, labels_pos],
+        regression_targets[sampled_pos_inds_subset],
+        beta=1 / 9,
+        reduction="sum",
+    )
+    box_loss = box_loss / labels.numel()
+
+    return classification_loss, box_loss
+
 class CustomRoIHeads(rh.RoIHeads):
     """
         The only difference between this class and the original RoiHeads from PyTorch
@@ -126,7 +181,7 @@ class CustomRoIHeads(rh.RoIHeads):
         box_features = self.box_roi_pool(features, proposals, image_shapes)
         box_features = self.box_head(box_features)
         class_logits, box_regression = self.box_predictor(box_features)
-
+        
         result: List[Dict[str, torch.Tensor]] = []
         losses = {}
         if self.training:
@@ -134,6 +189,7 @@ class CustomRoIHeads(rh.RoIHeads):
                 raise ValueError("labels cannot be None")
             if regression_targets is None:
                 raise ValueError("regression_targets cannot be None")
+
             loss_classifier, loss_box_reg = rh.fastrcnn_loss(class_logits, box_regression, labels, regression_targets)
             losses = {"loss_classifier": loss_classifier, "loss_box_reg": loss_box_reg}
         else:
