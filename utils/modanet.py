@@ -10,7 +10,6 @@ from torchvision.transforms.v2 import functional as F
 from pycocotools.coco import COCO
 
 ACCESSORIES_IDs = [1,2,7,12,13]
-NEW_ACCESSORY_ID = 14
 
 class ModaNetDataset(torch.utils.data.Dataset):
     """
@@ -95,7 +94,9 @@ class ModaNetDataset(torch.utils.data.Dataset):
                 You have to automatically generate the ground truth during the training following the rule: 
                     "True if class is one of the following: bag, belt, sunglasses, headwear, scarf tie. Otherwise is false".
 
-                This request implies the training of a binary classifier
+                As suggested: this request implies the training of a binary classifier
+                For every annotation inside one image we add 1 if this annotation is an accessory, 0 otherwise
+                In this way we get a list of binary values
             """
             if self.use_accessory: # generate ground truth for accessory
                 if ann['category_id'] in ACCESSORIES_IDs: 
@@ -113,7 +114,7 @@ class ModaNetDataset(torch.utils.data.Dataset):
         area = (boxes[:, 3] - boxes[:, 1]) * (boxes[:, 2] - boxes[:, 0])
         # suppose all instances are not crowd, boxes.shape[0] for MeanAveragePrecision computation
         iscrowd = torch.zeros((boxes.shape[0],), dtype=torch.int64)
-        new_accessories = torch.as_tensor(new_accessory,  dtype=torch.float32)
+        new_accessories = torch.as_tensor(new_accessory,  dtype=torch.float32) # kind of boolean array
 
         target["boxes"] = boxes
         target["masks"] = torch.as_tensor(np.array(masks), dtype=torch.uint8)

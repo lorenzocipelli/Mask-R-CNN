@@ -2,7 +2,7 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-import torchvision
+import tensorflow as tf
 from torch import nn, Tensor
 from torchvision.ops import boxes as box_ops
 
@@ -10,6 +10,17 @@ import torchvision.models.detection.roi_heads as rh
 from torchvision.models.detection.roi_heads import project_masks_on_boxes
 
 DEVICE = torch.device("cuda:0" if torch.cuda.is_available() else "cpu")
+
+sobel_h = torch.tensor([[-1.,-2.,-1.],
+                        [ 0., 0., 0.],
+                        [ 1., 2., 1.]])
+
+sobel_v = torch.tensor([[-1., 0., 1.],
+                        [-2., 0., 2.],
+                        [-1., 0., 1.]])
+
+sobel_h_weights = sobel_h.view(1, 1, 3, 3).repeat(1, 1, 1, 1)
+sobel_v_weights = sobel_v.view(1, 1, 3, 3).repeat(1, 1, 1, 1)
 
 def l2_loss(y_true, y_pred):
         return torch.mean(torch.pow(torch.abs(y_pred - y_true), 2), axis=-1)
@@ -34,17 +45,6 @@ def edge_agreement_loss(mask_logits, proposals, gt_masks, gt_labels, mask_matche
         Return:
             mask_loss (Tensor): scalar tensor containing the loss
     """
-
-    sobel_h = torch.tensor([[-1.,-2.,-1.],
-                            [ 0., 0., 0.],
-                            [ 1., 2., 1.]])
-    
-    sobel_v = torch.tensor([[-1., 0., 1.],
-                            [-2., 0., 2.],
-                            [-1., 0., 1.]])
-
-    sobel_h_weights = sobel_h.view(1, 1, 3, 3).repeat(1, 1, 1, 1)
-    sobel_v_weights = sobel_v.view(1, 1, 3, 3).repeat(1, 1, 1, 1)
 
     discretization_size = mask_logits.shape[-1]
     labels = [gt_label[idxs] for gt_label, idxs in zip(gt_labels, mask_matched_idxs)]
@@ -80,60 +80,6 @@ def edge_agreement_loss(mask_logits, proposals, gt_masks, gt_labels, mask_matche
 
     return total_edge_loss / labels.shape[0]
 
-def fastrcnn_loss(class_logits, box_regression, labels, regression_targets):
-    # type: (Tensor, Tensor, List[Tensor], List[Tensor]) -> Tuple[Tensor, Tensor]
-    """
-    Computes the loss for Faster R-CNN.
-
-    Args:
-        class_logits (Tensor)
-        box_regression (Tensor)
-        labels (list[BoxList])
-        regression_targets (Tensor)
-
-    Returns:
-        classification_loss (Tensor)
-        box_loss (Tensor)
-    """
-
-    """ print("DENTRO FASTRCNN_LOSS")
-    print(class_logits.size())
-    print(class_logits) # le logits servono per la cross-entropy, per stabilire se ho predetto correttamente la classe
-    print(box_regression.size())
-    print(box_regression) # servono alla smooth_l1_loss per definire quanto il modello è andato lontano dalla BB target """
-    
-    labels = torch.cat(labels, dim=0)
-    regression_targets = torch.cat(regression_targets, dim=0)
-
-    """ print(len(labels))
-    print(labels[0].size())
-    print(labels)
-    for label in labels :
-        print(label)
-    print(len(regression_targets))
-    print(regression_targets[0].size())
-    print(regression_targets)  """
-
-    classification_loss = F.cross_entropy(class_logits, labels, ignore_index=14)
-
-    # get indices that correspond to the regression targets for
-    # the corresponding ground truth labels, to be used with
-    # advanced indexing
-    sampled_pos_inds_subset = torch.where(labels > 0)[0]
-    labels_pos = labels[sampled_pos_inds_subset]
-    N, num_classes = class_logits.shape
-    box_regression = box_regression.reshape(N, box_regression.size(-1) // 4, 4)
-
-    box_loss = F.smooth_l1_loss(
-        box_regression[sampled_pos_inds_subset, labels_pos],
-        regression_targets[sampled_pos_inds_subset],
-        beta=1 / 9,
-        reduction="sum",
-    )
-    box_loss = box_loss / labels.numel()
-
-    return classification_loss, box_loss
-
 class CustomRoIHeads(rh.RoIHeads):
     """
         The only difference between this class and the original RoiHeads from PyTorch
@@ -143,6 +89,246 @@ class CustomRoIHeads(rh.RoIHeads):
         a predicted object returned from the possible RoIs. That's why the new loss is not implemented for
         the keypoint predictor
     """
+
+    def __init__(self,
+        box_roi_pool,
+        box_head,
+        box_predictor,
+        # Faster R-CNN training
+        fg_iou_thresh,
+        bg_iou_thresh,
+        batch_size_per_image,
+        positive_fraction,
+        bbox_reg_weights,
+        # Faster R-CNN inference
+        score_thresh,
+        nms_thresh,
+        detections_per_img,
+        # Mask
+        mask_roi_pool=None,
+        mask_head=None,
+        mask_predictor=None,
+        keypoint_roi_pool=None,
+        keypoint_head=None,
+        keypoint_predictor=None,
+        custom_loss=False, 
+        use_accessory=False
+    ) :
+        super().__init__(box_roi_pool,box_head,box_predictor, 
+                    fg_iou_thresh,bg_iou_thresh,batch_size_per_image,positive_fraction,bbox_reg_weights,
+                    score_thresh,nms_thresh,detections_per_img,mask_roi_pool,mask_head,mask_predictor,keypoint_roi_pool,
+                    keypoint_head,keypoint_predictor)
+        
+        self.custom_loss = custom_loss
+        self.use_accessory = use_accessory
+
+    def custom_postprocess_detections(
+        self,
+        class_logits,  # type: Tensor
+        box_regression,  # type: Tensor
+        proposals,  # type: List[Tensor]
+        image_shapes,  # type: List[Tuple[int, int]]
+        accessory_scores # type: Tensor
+    ):
+        # type: (...) -> Tuple[List[Tensor], List[Tensor], List[Tensor]]
+        """
+            Also in that case we can replicate the same operations made for the boxes
+        """
+        device = class_logits.device
+        num_classes = class_logits.shape[-1]
+
+        boxes_per_image = [boxes_in_image.shape[0] for boxes_in_image in proposals]
+        pred_boxes = self.box_coder.decode(box_regression, proposals)
+
+        pred_scores = F.softmax(class_logits, -1)
+
+        pred_accessories = torch.sigmoid(accessory_scores)
+
+        pred_boxes_list = pred_boxes.split(boxes_per_image, 0)
+        pred_scores_list = pred_scores.split(boxes_per_image, 0)
+        accessories_list = pred_accessories.split(boxes_per_image, 0)
+
+        all_boxes = []
+        all_scores = []
+        all_labels = []
+        all_accessories = []
+        for boxes, scores, image_shape, accessories in zip(pred_boxes_list, pred_scores_list, image_shapes, accessories_list):
+            boxes = box_ops.clip_boxes_to_image(boxes, image_shape)
+
+            # create labels for each prediction
+            labels = torch.arange(num_classes, device=device)
+            labels = labels.view(1, -1).expand_as(scores)
+            accessories = accessories.repeat(1,num_classes)
+
+            # remove predictions with the background label
+            boxes = boxes[:, 1:]
+            scores = scores[:, 1:]
+            labels = labels[:, 1:]
+            accessories = accessories[:, 1:]
+
+            # batch everything, by making every class prediction be a separate instance
+            boxes = boxes.reshape(-1, 4)
+            scores = scores.reshape(-1)
+            labels = labels.reshape(-1)
+            accessories = accessories.reshape(-1)
+
+            # remove low scoring boxes
+            inds = torch.where(scores > self.score_thresh)[0]
+            boxes, scores, labels, accessories = boxes[inds], scores[inds], labels[inds], accessories[inds]
+
+            # remove empty boxes
+            keep = box_ops.remove_small_boxes(boxes, min_size=1e-2)
+            boxes, scores, labels, accessories = boxes[keep], scores[keep], labels[keep], accessories[keep]
+
+            # non-maximum suppression, independently done per class
+            keep = box_ops.batched_nms(boxes, scores, labels, self.nms_thresh)
+            # keep only topk scoring predictions
+            keep = keep[: self.detections_per_img]
+            boxes, scores, labels, accessories = boxes[keep], scores[keep], labels[keep], accessories[keep]
+
+            all_boxes.append(boxes)
+            all_scores.append(scores)
+            all_labels.append(labels)
+            all_accessories.append(accessories)
+
+        return all_boxes, all_scores, all_labels, all_accessories
+
+    def custom_assign_targets_to_proposals(self, proposals, gt_boxes, gt_labels, gt_accessories):
+        # type: (List[Tensor], List[Tensor], List[Tensor], List[Tensor]) -> Tuple[List[Tensor], List[Tensor], List[Tensor]]
+        """
+            What we want to do in here is to assign an accessory gt to every proposal, that's the only difference wrt the default function
+        """
+        matched_idxs = []
+        labels = []
+        accessories = []
+        for proposals_in_image, gt_boxes_in_image, gt_labels_in_image, gt_acc_in_image in zip(proposals, gt_boxes, gt_labels, gt_accessories):
+
+            if gt_boxes_in_image.numel() == 0:
+                # Background image
+                device = proposals_in_image.device
+                clamped_matched_idxs_in_image = torch.zeros(
+                    (proposals_in_image.shape[0],), dtype=torch.int64, device=device
+                )
+                labels_in_image = torch.zeros((proposals_in_image.shape[0],), dtype=torch.int64, device=device)
+                acc_in_image = torch.zeros((proposals_in_image.shape[0],), dtype=torch.int64, device=device)
+            else:
+                #  set to self.box_similarity when https://github.com/pytorch/pytorch/issues/27495 lands
+                match_quality_matrix = box_ops.box_iou(gt_boxes_in_image, proposals_in_image)
+                matched_idxs_in_image = self.proposal_matcher(match_quality_matrix)
+
+                clamped_matched_idxs_in_image = matched_idxs_in_image.clamp(min=0)
+
+                labels_in_image = gt_labels_in_image[clamped_matched_idxs_in_image]
+                labels_in_image = labels_in_image.to(dtype=torch.int64)
+                # the labels positions are the same for gt_labels_in_image and gt_acc_in_image
+                # because the way they were defined inside the Custom DataLoader...
+                # so we can make the exact same operations of both
+                acc_in_image = gt_acc_in_image[clamped_matched_idxs_in_image]
+                acc_in_image = acc_in_image.to(dtype=torch.int64)
+
+                # Label background (below the low threshold)
+                bg_inds = matched_idxs_in_image == self.proposal_matcher.BELOW_LOW_THRESHOLD
+                labels_in_image[bg_inds] = 0
+                acc_in_image[bg_inds] = 0
+
+                # Label ignore proposals (between low and high thresholds)
+                ignore_inds = matched_idxs_in_image == self.proposal_matcher.BETWEEN_THRESHOLDS
+                labels_in_image[ignore_inds] = -1  # -1 is ignored by sampler
+                acc_in_image[ignore_inds] = -1
+
+            matched_idxs.append(clamped_matched_idxs_in_image)
+            labels.append(labels_in_image)
+            accessories.append(acc_in_image)
+        return matched_idxs, labels, accessories
+
+    def custom_select_training_samples(
+        self,
+        proposals,  # type: List[Tensor]
+        targets,  # type: Optional[List[Dict[str, Tensor]]]
+    ):
+        # type: (...) -> Tuple[List[Tensor], List[Tensor], List[Tensor], List[Tensor]]
+        self.check_targets(targets)
+        if targets is None:
+            raise ValueError("targets should not be None")
+        dtype = proposals[0].dtype
+        device = proposals[0].device
+
+        gt_boxes = [t["boxes"].to(dtype) for t in targets]
+        gt_labels = [t["labels"] for t in targets]
+        gt_accessories = [t["accessory"] for t in targets]
+
+        # append ground-truth bboxes to propos
+        proposals = self.add_gt_proposals(proposals, gt_boxes)
+
+        # get matching gt indices for each proposal
+        matched_idxs, labels, accessories = self.custom_assign_targets_to_proposals(proposals, gt_boxes, gt_labels, gt_accessories)
+
+        # sample a fixed proportion of positive-negative proposals
+        sampled_inds = self.subsample(labels)
+        matched_gt_boxes = []
+        num_images = len(proposals)
+        for img_id in range(num_images):
+            img_sampled_inds = sampled_inds[img_id]
+            proposals[img_id] = proposals[img_id][img_sampled_inds]
+            labels[img_id] = labels[img_id][img_sampled_inds]
+            # same exact operations even in here
+            matched_idxs[img_id] = matched_idxs[img_id][img_sampled_inds]
+            accessories[img_id] = accessories[img_id][img_sampled_inds]
+
+            gt_boxes_in_image = gt_boxes[img_id]
+            if gt_boxes_in_image.numel() == 0:
+                gt_boxes_in_image = torch.zeros((1, 4), dtype=dtype, device=device)
+            matched_gt_boxes.append(gt_boxes_in_image[matched_idxs[img_id]])
+
+        regression_targets = self.box_coder.encode(matched_gt_boxes, proposals)
+
+        return proposals, matched_idxs, labels, regression_targets, accessories
+
+    def custom_fastrcnn_loss(self, class_logits, box_regression, labels, regression_targets, accessory_scores, accessory_targets) :
+        # type: (Tensor, Tensor, List[Tensor], List[Tensor], Tensor, Tensor) -> Tuple[Tensor, Tensor, Tensor]
+        """
+        Computes the loss for Faster R-CNN.
+
+        Args:
+            class_logits (Tensor)
+            box_regression (Tensor)
+            labels (list[BoxList])
+            regression_targets (Tensor)
+
+        Returns:
+            classification_loss (Tensor)
+            box_loss (Tensor)
+        """
+
+        labels = torch.cat(labels, dim=0)
+        accessory_targets = torch.cat(accessory_targets, dim=0)
+
+        regression_targets = torch.cat(regression_targets, dim=0)
+        # cross_entropy considers all the classes loss and output them as a whole
+        classification_loss = F.cross_entropy(class_logits, labels)
+        # get indices that correspond to the regression targets for
+        # the corresponding ground truth labels, to be used with
+        # advanced indexing
+        sampled_pos_inds_subset = torch.where(labels > 0)[0]
+        labels_pos = labels[sampled_pos_inds_subset]
+        N, num_classes = class_logits.shape
+        box_regression = box_regression.reshape(N, box_regression.size(-1) // 4, 4)
+
+        box_loss = F.smooth_l1_loss(
+            box_regression[sampled_pos_inds_subset, labels_pos],
+            regression_targets[sampled_pos_inds_subset],
+            beta=1 / 9,
+            reduction="sum",
+        )
+        box_loss = box_loss / labels.numel()
+
+        # for the binary classification purpose a binary_cross_entropy is needed
+        # https://stackoverflow.com/questions/53628622/loss-function-its-inputs-for-binary-classification-pytorch
+
+        accessory_predictions = F.sigmoid(accessory_scores)
+        accessory_loss = F.binary_cross_entropy(accessory_predictions, accessory_targets.unsqueeze(1).to(torch.float32))
+
+        return classification_loss, box_loss, accessory_loss
 
     def forward(
         self,
@@ -172,15 +358,23 @@ class CustomRoIHeads(rh.RoIHeads):
                         raise TypeError(f"target keypoints must of float type, instead got {t['keypoints'].dtype}")
 
         if self.training:
-            proposals, matched_idxs, labels, regression_targets = self.select_training_samples(proposals, targets)
+            if self.use_accessory :
+                proposals, matched_idxs, labels, regression_targets, accessory_targets = self.custom_select_training_samples(proposals, targets)
+            else :
+                proposals, matched_idxs, labels, regression_targets = self.select_training_samples(proposals, targets)
         else:
             labels = None
             regression_targets = None
             matched_idxs = None
+            accessory_targets = None
 
+        # forward calls
         box_features = self.box_roi_pool(features, proposals, image_shapes)
         box_features = self.box_head(box_features)
-        class_logits, box_regression = self.box_predictor(box_features)
+        if self.use_accessory :
+            class_logits, box_regression, accessory_score = self.box_predictor(box_features)
+        else :
+            class_logits, box_regression = self.box_predictor(box_features)
         
         result: List[Dict[str, torch.Tensor]] = []
         losses = {}
@@ -190,19 +384,37 @@ class CustomRoIHeads(rh.RoIHeads):
             if regression_targets is None:
                 raise ValueError("regression_targets cannot be None")
 
-            loss_classifier, loss_box_reg = rh.fastrcnn_loss(class_logits, box_regression, labels, regression_targets)
-            losses = {"loss_classifier": loss_classifier, "loss_box_reg": loss_box_reg}
+            if self.use_accessory : 
+                loss_classifier, loss_box_reg, loss_accessory = self.custom_fastrcnn_loss(class_logits, box_regression, labels, regression_targets, accessory_score, accessory_targets)
+                losses = {"loss_classifier": loss_classifier, "loss_box_reg": loss_box_reg, "accessory_loss": loss_accessory}
+            else :
+                loss_classifier, loss_box_reg = rh.fastrcnn_loss(class_logits, box_regression, labels, regression_targets)
+                losses = {"loss_classifier": loss_classifier, "loss_box_reg": loss_box_reg}
         else:
-            boxes, scores, labels = self.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
+            if self.use_accessory :
+                boxes, scores, labels, accessories = self.custom_postprocess_detections(class_logits, box_regression, proposals, image_shapes, accessory_score)
+            else :
+                boxes, scores, labels = rh.postprocess_detections(class_logits, box_regression, proposals, image_shapes)
+
             num_images = len(boxes)
             for i in range(num_images):
-                result.append(
-                    {
-                        "boxes": boxes[i],
-                        "labels": labels[i],
-                        "scores": scores[i],
-                    }
-                )
+                if self.use_accessory :
+                    result.append(
+                        {
+                            "boxes": boxes[i],
+                            "labels": labels[i],
+                            "scores": scores[i],
+                            "accessories": accessories[i],
+                        }
+                    )
+                else :
+                    result.append(
+                        {
+                            "boxes": boxes[i],
+                            "labels": labels[i],
+                            "scores": scores[i],
+                        }
+                    )
 
         if self.has_mask():
             mask_proposals = [p["boxes"] for p in result]
@@ -239,10 +451,10 @@ class CustomRoIHeads(rh.RoIHeads):
                 rcnn_loss_mask = rh.maskrcnn_loss(mask_logits, mask_proposals, gt_masks, gt_labels, pos_matched_idxs)
                 loss_mask = {"loss_mask": rcnn_loss_mask}
 
-                # edge agreement loss :
-                # compute the loss with respect to the selected mask and the ground truth mask
-                loss_edge_agreement = edge_agreement_loss(mask_logits, mask_proposals, gt_masks, gt_labels, pos_matched_idxs)
-                loss_edge_agreement = {"loss_edge_agreement": loss_edge_agreement}
+                if self.custom_loss : # edge agreement loss
+                    # compute the loss with respect to the selected mask and the ground truth mask
+                    loss_edge_agreement = edge_agreement_loss(mask_logits, mask_proposals, gt_masks, gt_labels, pos_matched_idxs)
+                    loss_edge_agreement = {"loss_edge_agreement": loss_edge_agreement}
             else:
                 labels = [r["labels"] for r in result]
                 masks_probs = rh.maskrcnn_inference(mask_logits, labels)

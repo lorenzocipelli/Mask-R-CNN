@@ -50,14 +50,12 @@ class Engine() :
         self.model_name = args.model_name
         self.check_path = args.saving_path
         self.use_amp = args.use_amp
+        self.use_accessory = args.use_accessory
         self.custom_loss = args.custom_loss
-        # remember: background has to be considered as the first class, so we add one more
-        if args.use_accessory :
-            num_classes = 15
-        else :
-            num_classes = 14
+        self.num_classes = 14 # background has to be considered as the first class, so we add one more
+
         # qui andrà modificato con 14 fisso, l'ultima classe non serve a nulla
-        self.model = MaskRCNN(num_classes=num_classes, args=args).to(DEVICE)
+        self.model = MaskRCNN(num_classes=self.num_classes, args=args).to(DEVICE)
 
         if args.resume :
             self.load_model(resume=args.resume_name)
@@ -122,9 +120,10 @@ class Engine() :
                     'loss_objectness': 0,
                     'loss_rpn_box_reg': 0
                 }
-
+            if self.use_accessory :
+                loss_dict.update({'accessory_loss': 0})
             if self.custom_loss : # optionally add key, value for edge agreement loss
-                 loss_dict.update({'loss_edge_agreement': 0})                 
+                loss_dict.update({'loss_edge_agreement': 0})                 
 
             running_loss = 0.0
             running_loss_dict = loss_dict
@@ -185,6 +184,8 @@ class Engine() :
                         'loss_objectness': 0,
                         'loss_rpn_box_reg': 0
                     }
+                    if self.use_accessory :
+                        running_loss_dict.update({'accessory_loss': 0})
                     if self.custom_loss : # optionally add key, value for edge agreement loss
                         running_loss_dict.update({'loss_edge_agreement': 0})
 
@@ -263,12 +264,21 @@ class Engine() :
                 image = (255.0 * (images[0] - images[0].min()) / (images[0].max() - images[0].min())).to(torch.uint8)
                 image = image[:3, ...]
 
-                preds = [(f"{CLASSES[label-1]}: {score:.3f}", boxes, masks) 
-                            for label, score, boxes, masks in zip(
-                                pred["labels"].detach().cpu(),
-                                pred["scores"].detach().cpu(),
-                                pred["boxes"].detach().cpu(),
-                                pred["masks"].detach().cpu()) if score >= 0.6]    
+                if self.use_accessory :
+                    preds = [(f"{CLASSES[label-1]}: {score:.3f} - acc: {acc}", boxes, masks) 
+                                for label, score, boxes, acc, masks in zip(
+                                    pred["labels"].detach().cpu(),
+                                    pred["scores"].detach().cpu(),
+                                    pred["boxes"].detach().cpu(),
+                                    pred["accessories"].detach().cpu(),
+                                    pred["masks"].detach().cpu()) if score >= 0.6]
+                else : 
+                    preds = [(f"{CLASSES[label-1]}: {score:.3f}", boxes, masks) 
+                                for label, score, boxes, masks in zip(
+                                    pred["labels"].detach().cpu(),
+                                    pred["scores"].detach().cpu(),
+                                    pred["boxes"].detach().cpu(),
+                                    pred["masks"].detach().cpu()) if score >= 0.6]    
 
                 if len(preds) == 0 :
                     print("No prediction was found for this image")
@@ -299,8 +309,6 @@ class Engine() :
                     else :
                         axarr[x,y].imshow(output_images_list[x*IMGS_PER_ROW + y].permute(1, 2, 0))
 
-            #plt.figure(figsize=(10, 12))
-            #plt.imshow(output_image.permute(1, 2, 0))
             f.set_figheight(10)
             f.set_figwidth(19)
             f.tight_layout()
