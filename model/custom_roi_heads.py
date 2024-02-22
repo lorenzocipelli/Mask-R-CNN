@@ -2,7 +2,6 @@ from typing import Dict, List, Optional, Tuple
 
 import torch
 import torch.nn.functional as F
-import tensorflow as tf
 from torch import nn, Tensor
 from torchvision.ops import boxes as box_ops
 
@@ -325,8 +324,10 @@ class CustomRoIHeads(rh.RoIHeads):
         # for the binary classification purpose a binary_cross_entropy is needed
         # https://stackoverflow.com/questions/53628622/loss-function-its-inputs-for-binary-classification-pytorch
 
-        accessory_predictions = F.sigmoid(accessory_scores)
-        accessory_loss = F.binary_cross_entropy(accessory_predictions, accessory_targets.unsqueeze(1).to(torch.float32))
+        #accessory_predictions = F.sigmoid(accessory_scores)
+        #accessory_loss = F.binary_cross_entropy(accessory_predictions, accessory_targets.unsqueeze(1).to(torch.float32))
+        # use this instead of sigmoid + binary_cross_entropy because it is safe to autocast operations
+        accessory_loss = F.binary_cross_entropy_with_logits(accessory_scores,accessory_targets.unsqueeze(1).to(torch.float32))
 
         return classification_loss, box_loss, accessory_loss
 

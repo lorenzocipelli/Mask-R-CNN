@@ -60,7 +60,7 @@ def main(args) :
     modanet = ModaNetDataset(args, transforms_pipeline())
 
     train_modanet, val_modanet, test_modanet = get_subsets(modanet)
-
+    # collate_fn to put all the data inside the DataLoader "queue" inside a single batch element. It enables -> for batch in train_loader
     train_loader = DataLoader(train_modanet, batch_size=args.batch_size, shuffle=True, num_workers=args.workers, collate_fn=collate_fn)
     valid_loader = DataLoader(val_modanet, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, collate_fn=collate_fn)
     test_loader = DataLoader(test_modanet, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, collate_fn=collate_fn)
