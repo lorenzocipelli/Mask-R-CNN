@@ -31,7 +31,7 @@ def get_args():
 
     parser.add_argument('--resume', action='store_true', help='load the model from checkpoint (true or false)')
     parser.add_argument('--resume_name', type=str,  default='', help='checkpoint model name')
-    parser.add_argument('--mode', type=str, default='train', choices=['train', 'test'], help = 'net mode (train or test)')
+    parser.add_argument('--mode', type=str, default='train', choices=['train', 'test','hyper_tuning'], help = 'net mode (train or test or hyperparamter tuning)')
     parser.add_argument('--pretrained', action='store_true', help='load pretrained coco weights')
     parser.add_argument('--use_amp', action='store_true', help='use Automatic Mixed Precision (AMP) to speed-up training')
     parser.add_argument('--version', type=str, default='V1', choices=['V1', 'V2'], help = 'maskrcnn version V1 or V2')
@@ -65,12 +65,38 @@ def main(args) :
     valid_loader = DataLoader(val_modanet, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, collate_fn=collate_fn)
     test_loader = DataLoader(test_modanet, batch_size=args.batch_size, shuffle=False, num_workers=args.workers, collate_fn=collate_fn)
 
-    engine = Engine(train_loader, valid_loader, test_loader, args)
+    if args.mode == "hyper_tuning" :
+        hyperparams = {
+            "learning_rate" : [0.05, 0.005, 0.0005],
+            "batch_size" : [16,32],
+            "epochs" : [8,12]
+        }
 
-    if args.mode == "train":
-        engine.train()
-    elif args.mode == "test":
-        engine.test()
+        for lr in hyperparams['learning_rate'] :
+            for bs in hyperparams['batch_size'] :
+                for ep in hyperparams['epochs'] :
+                    run_name = "lr_" + str(lr).replace(".","-") + "_bs_" + str(bs) + "_ep_" + str(ep)
+                    args.model_name = run_name
+                    args.lr = lr
+                    args.batch_size = bs
+                    args.epochs = ep
+
+                    engine = Engine(train_loader, valid_loader, test_loader, args)
+                    engine.train()     
+
+                    print("Training of " + run_name + " finished !")
+
+                    del engine       
+
+        print("Hyperparameters fine-tuning finished !")
+        
+    else : # training or testing
+        engine = Engine(train_loader, valid_loader, test_loader, args)
+
+        if args.mode == "train" :
+            engine.train()
+        elif args.mode == "test" :
+            engine.test()
 
 if __name__ == "__main__" :
     args = get_args()

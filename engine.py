@@ -14,6 +14,11 @@ from torchmetrics.detection.mean_ap import MeanAveragePrecision
 from torch.utils.tensorboard import SummaryWriter
 from torchvision.utils import draw_bounding_boxes, draw_segmentation_masks
 
+COLORS = [(51, 153, 255), (255, 102, 0), (0, 204, 153), (153, 102, 255), (255, 255, 0),
+          (204, 102, 153), (204, 102, 0), (51, 51, 0), (0, 153, 0), (51, 51, 255)]
+
+COLORS = COLORS + COLORS # double the number of colors, even if they repeat, to be sure when printing
+
 CLASSES = ["bag","belt","boots","footwear",
            "outer","dress","sunglasses",
            "pants","top","shorts","skirt",
@@ -68,7 +73,16 @@ class Engine() :
         elif args.opt == "Adam":
             self.optimizer = optim.Adam(self.model.parameters(), lr=args.lr)
 
-        self.summary = SummaryWriter(log_dir=f'/runs/modanet') # will write in ./runs/ folder 
+        if args.mode == "hyper_tuning" :
+            self.run_name = "/hpc/home/lorenzo.cipelli/mask-rcnn/runs/" + self.model_name
+            self.tuning = True
+        else :
+            self.tuning = False
+
+        if self.tuning :
+            self.summary = SummaryWriter(log_dir=self.run_name)
+        else :
+            self.summary = SummaryWriter(log_dir=f'/runs/modanet') # will write in ./runs/ folder 
 
     def save_model(self, epoch, iteration=0) :
         # if you want to save the model
@@ -189,8 +203,8 @@ class Engine() :
                     if self.custom_loss : # optionally add key, value for edge agreement loss
                         running_loss_dict.update({'loss_edge_agreement': 0})
 
-                if i % 1000 == 999: # every 1000 mini-batch save the model
-                    self.save_model(epoch, i)
+                #if i % 1000 == 999: # every 1000 mini-batch save the model
+                #    self.save_model(epoch, i)
 
             self.save_model(epoch)
 
@@ -203,7 +217,8 @@ class Engine() :
 
         print("Training Finished !")
 
-        self.evaluate() # compute the mAP metrics over the validation set
+        if not(self.tuning) :
+            self.evaluate() # compute the mAP metrics over the validation set
 
         self.summary.close()
 
@@ -245,11 +260,12 @@ class Engine() :
             want_to_print = 1
         
         output_images_list = []
+        not_predicted = 0 # count for images without predictions, used in when printing in a grid
         # set it to evaluation mode
         self.model.eval()
         # since we're not training, we don't need to calculate the gradients for our outputs
         with torch.no_grad():
-            prog_bar = tqdm(self.test_loader, total=len(self.test_loader))
+            prog_bar = tqdm(self.test_loader, total=want_to_print)
             for i, data in enumerate(prog_bar):
                 if i >= want_to_print : # stop when we have the requested number of images
                     break
@@ -265,23 +281,24 @@ class Engine() :
                 image = image[:3, ...]
 
                 if self.use_accessory :
-                    preds = [(f"{CLASSES[label-1]}: {score:.3f} - acc: {acc}", boxes, masks) 
+                    preds = [(f"{CLASSES[label-1]}: {score:.3f} - acc: {round(acc.item())}", boxes, masks) 
                                 for label, score, boxes, acc, masks in zip(
                                     pred["labels"].detach().cpu(),
                                     pred["scores"].detach().cpu(),
                                     pred["boxes"].detach().cpu(),
                                     pred["accessories"].detach().cpu(),
-                                    pred["masks"].detach().cpu()) if score >= 0.6]
+                                    pred["masks"].detach().cpu()) if score >= 0.65]
                 else : 
                     preds = [(f"{CLASSES[label-1]}: {score:.3f}", boxes, masks) 
                                 for label, score, boxes, masks in zip(
                                     pred["labels"].detach().cpu(),
                                     pred["scores"].detach().cpu(),
                                     pred["boxes"].detach().cpu(),
-                                    pred["masks"].detach().cpu()) if score >= 0.6]    
+                                    pred["masks"].detach().cpu()) if score >= 0.65]    
 
                 if len(preds) == 0 :
-                    print("No prediction was found for this image")
+                    not_predicted += 1
+                    print("\nNo prediction was found for this image")
                 else :
                     pred_labels, pred_boxes, pred_masks = [], [], []
                     for (label, box, mask) in preds :
@@ -292,8 +309,8 @@ class Engine() :
                     pred_boxes = torch.tensor(pred_boxes, dtype=torch.float16).long()
                     pred_masks = (torch.tensor(pred_masks, dtype=torch.float16) > 0.5).squeeze(1)
 
-                    output_image = draw_bounding_boxes(image, pred_boxes, pred_labels)
-                    output_image = draw_segmentation_masks(output_image, pred_masks, alpha=0.7)
+                    output_image = draw_bounding_boxes(image, pred_boxes, pred_labels, colors=COLORS)
+                    output_image = draw_segmentation_masks(output_image, pred_masks, alpha=0.6, colors=COLORS)
                     output_images_list.append(output_image)
 
             # the number of element for each row is fixed (number of columns)
@@ -304,7 +321,7 @@ class Engine() :
             for x in range(num_rows) :
                 for y in range(IMGS_PER_ROW) :
                     index = x*IMGS_PER_ROW + y
-                    if index > len(output_images_list) :
+                    if index > (len(output_images_list) - not_predicted) :
                         break
                     else :
                         axarr[x,y].imshow(output_images_list[x*IMGS_PER_ROW + y].permute(1, 2, 0))
