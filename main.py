@@ -67,7 +67,7 @@ def main(args) :
 
     if args.mode == "hyper_tuning" :
         hyperparams = {
-            "learning_rate" : [0.05, 0.005, 0.0005],
+            "learning_rate" : [0.005, 0.0005],
             "batch_size" : [16,32],
             "epochs" : [8,12]
         }
