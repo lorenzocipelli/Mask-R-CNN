@@ -83,3 +83,9 @@ models_names = ["accessory_12_epochs", "V2"]
 models = ("V1", "V2")
 
 print_things(models_names, models, title)
+
+title = "Comparison of Accessory Model 12 epochs or 20 epochs"
+models_names = ["accessory_12_epochs", "accessory_20_epochs"]
+models = ("12", "20")
+
+print_things(models_names, models, title)
