@@ -1,9 +1,8 @@
 import matplotlib.pyplot as plt
-from pprint import pprint
 import numpy as np
 import json
 
-def print_things(models_names, models) :
+def print_things(models_names, models, title) :
     task_names = ["result_mask_MAP", "result_bbox_MAP"]
 
     mAPs = {
@@ -37,15 +36,15 @@ def print_things(models_names, models) :
         multiplier += 1
 
     # Add some text for labels, title and custom x-axis tick labels, etc.
-    ax.set_title('Performance Comparison Initial Models')
+    ax.set_title(title)
     ax.set_xticks(x + width, models)
-    ax.legend(loc='upper left', ncols=3)
-    ax.set_ylim(0, 0.30)
+    ax.legend(ncols=3)
+    ax.set_ylim(0, 0.35)
 
     plt.show()
 
 
-with open('results.json', 'r') as json_file:
+with open('output/results.json', 'r') as json_file:
     json_object = json.load(json_file)
 
 ############ 1° CONFRONTO ##############
@@ -55,11 +54,11 @@ with open('results.json', 'r') as json_file:
     Tutti allenati su 4 epochs con bs di 8
 """
 
-
+title = "Comparison of Initial Models"
 models_names = ["no_pretrain_accessory", "no_pretrain_no_accessory", "no_pretrain_custom_loss"]
 models = ("No Accessory", "Accessory", "Custom Loss")
 
-print_things(models_names, models)
+print_things(models_names, models, title)
 
 ############ 2° CONFRONTO ##############
 """
@@ -67,10 +66,11 @@ print_things(models_names, models)
     il modello allenato con Accessory per 12 epochs con Adam (lr=0.0005)
 """
 
+title = "Comparison of Accessory Model with SGD or Adam"
 models_names = ["accessory_12_epochs", "Adam"]
-models = ("Accessory", "Adam")
+models = ("SGD", "Adam")
 
-print_things(models_names, models)
+print_things(models_names, models, title)
 
 ############ 3° CONFRONTO ##############
 """
@@ -78,13 +78,8 @@ print_things(models_names, models)
     con il modello utilizzando la versione 2 della mask-rcnn di Pytorch, su 12 epochs
 """
 
+title = "Comparison of Accessory Model using V1 or V2 (PyTorch)"
 models_names = ["accessory_12_epochs", "V2"]
-models = ("Accessory", "V2")
+models = ("V1", "V2")
 
-print_things(models_names, models)
-
-############ 4° CONFRONTO ##############
-"""
-    Confronto del modello migliore tra tutti quelli precedenti con diversi batch_size,
-    su diverse epochs e con diversi learning rate
-"""
+print_things(models_names, models, title)
