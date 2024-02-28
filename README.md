@@ -39,7 +39,27 @@ Finally you can customize the training or the fine-tuning of your model by using
 Notes regarding the last bash -> keep in mind that the optimizer can be either SGD or Adam, if you finetune a model that has been trained on the V1 version of the PyTorch Mask R-CNN and you specify that the --_version_ is V2 then it won't work, and viceversa. Finally --_use_amp_ can be used only if you have CUDA activated on your GPU to use Automatic Mixed Precision to speed up the weights computation.
 
 ## Test Output
-In this section are shown the results of three consecutive runs on the test set, which shows each time the mask, bounding box and accessory (if active) predictions over 10 different images.
+In this section are shown the results of three consecutive runs on the test set, which shows each time the mask, bounding box and accessory (if active) predictions over 10 different images. Of course as you can see sometime the mask predictor tend to output some false positives, but generally speaking it gives back a good approximation of the clothing's shapes.
+
 ![testing result 1](images/Results_1.png)
 ![testing result 2](images/Results_2.png)
 ![testing result 3](images/Results_3.png)
+
+## Environment Variables
+
+To run this project, you will need to install the following packages to your environment
+
+`pycocotools`
+`pillow`
+`torch`
+`torchvision`
+`torchmetrics`
+`tensorboard`
+`opencv-python`
+`numpy`
+`tqdm`
+`matplotlib`
+`json`
+
+> [!NOTE]
+> If you have any questions about the project contact me on LinkedIn following [this](https://www.linkedin.com/in/lorenzo-cipelli-3b1665230/) link 
