@@ -38,8 +38,8 @@ def print_things(models_names, models, title) :
     # Add some text for labels, title and custom x-axis tick labels, etc.
     ax.set_title(title)
     ax.set_xticks(x + width, models)
-    ax.legend(ncols=3)
     ax.set_ylim(0, 0.35)
+    ax.legend()
 
     plt.show()
 

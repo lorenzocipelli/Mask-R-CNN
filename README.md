@@ -38,6 +38,16 @@ Finally you can customize the training or the fine-tuning of your model by using
 ``` 
 Notes regarding the last bash -> keep in mind that the optimizer can be either SGD or Adam, if you finetune a model that has been trained on the V1 version of the PyTorch Mask R-CNN and you specify that the --_version_ is V2 then it won't work, and viceversa. Finally --_use_amp_ can be used only if you have CUDA activated on your GPU to use Automatic Mixed Precision to speed up the weights computation.
 
+Showing the comparisons between some models that were trained to find the best one is easy, just use the following command :
+```bash
+python .\utils\show_results.py
+``` 
+
+Finally, to show the runs loss in training and validation copy the runs folder inside your disk root directory, only then launch this command (tensorboard required):
+```bash
+python -m tensorboard.main --logdir=D:/runs
+``` 
+
 ## Test Output
 In this section are shown the results of three consecutive runs on the test set, which shows each time the mask, bounding box and accessory (if active) predictions over 10 different images. Of course as you can see sometime the mask predictor tend to output some false positives, but generally speaking it gives back a good approximation of the clothing's shapes.
 
@@ -61,5 +71,8 @@ To run this project, you will need to install the following packages to your env
 `matplotlib`
 `json`
 
+## Author
+* Lorenzo Cipelli
+
 > [!NOTE]
-> If you have any questions about the project contact me on LinkedIn following [this](https://www.linkedin.com/in/lorenzo-cipelli-3b1665230/) link 
+> If you have any question about the project contact me on LinkedIn following [this](https://www.linkedin.com/in/lorenzo-cipelli-3b1665230/) link 
